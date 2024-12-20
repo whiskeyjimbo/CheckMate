@@ -2,44 +2,23 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/whiskeyjimbo/CheckMate/pkg/checkers"
+	"github.com/whiskeyjimbo/CheckMate/pkg/config"
 	"github.com/whiskeyjimbo/CheckMate/pkg/metrics"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v2"
 )
-
-const (
-	defaultHost     = "localhost"
-	defaultPort     = "2525"
-	defaultProtocol = "SMTP"
-	defaultInterval = "10"
-)
-
-type Config struct {
-	Host     string `yaml:"host"`
-	Port     string `yaml:"port"`
-	Protocol string `yaml:"protocol"`
-	Interval string `yaml:"interval"`
-}
 
 func main() {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 	sugar := logger.Sugar()
 
-	configFile := getEnv("CONFIG_FILE", "config.yaml")
-	config, err := loadConfig(configFile)
+	configFile := config.GetEnv("CONFIG_FILE", "config.yaml")
+	config, err := config.LoadConfig(configFile)
 	if err != nil {
 		sugar.Infof("Using default values: %v", err)
-	}
-	if _, err := strconv.Atoi(config.Interval); err == nil {
-		sugar.Infof("Invalid interval %s, assuming Seconds: %s", config.Interval, config.Interval+"s")
-		config.Interval = config.Interval + "s"
 	}
 
 	interval, err := time.ParseDuration(config.Interval)
@@ -49,10 +28,9 @@ func main() {
 
 	address := fmt.Sprintf("%s:%s", config.Host, config.Port)
 
-	protocol := strings.ToUpper(config.Protocol)
-	checker, err := checkers.NewChecker(protocol)
+	checker, err := checkers.NewChecker(config.Protocol)
 	if err != nil {
-		sugar.Fatalf("Unsupported protocol %s", protocol)
+		sugar.Fatalf("Unsupported protocol %s", config.Protocol)
 	}
 
 	promMetricsEndpoint := metrics.NewPrometheusMetrics(sugar)
@@ -70,31 +48,4 @@ func main() {
 
 		time.Sleep(interval)
 	}
-}
-
-func getEnv(key, defaultValue string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return defaultValue
-}
-
-func loadConfig(configFile string) (*Config, error) {
-	defaultConfig := Config{
-		Host:     defaultHost,
-		Port:     defaultPort,
-		Protocol: defaultProtocol,
-		Interval: defaultInterval,
-	}
-
-	fileContent, err := os.ReadFile(configFile)
-	if err != nil {
-		return &defaultConfig, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	if err := yaml.Unmarshal(fileContent, &defaultConfig); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
-	}
-
-	return &defaultConfig, nil
 }
