@@ -48,16 +48,9 @@ func main() {
 
 	address := fmt.Sprintf("%s:%s", config.Host, config.Port)
 
-	checkers := map[string]checkers.Checker{
-		"TCP":  checkers.TCPChecker{},
-		"HTTP": checkers.HTTPChecker{},
-		"SMTP": checkers.SMTPChecker{},
-		"DNS":  checkers.DNSChecker{},
-	}
-
 	protocol := strings.ToUpper(config.Protocol)
-	checker, ok := checkers[protocol]
-	if !ok {
+	checker, err := checkers.NewChecker(protocol)
+	if err != nil {
 		sugar.Fatalf("Unsupported protocol %s", protocol)
 	}
 
