@@ -34,37 +34,37 @@ func main() {
 		case "TCP":
 			conn, err := net.Dial(protocol, address)
 			if err != nil {
-				sugar.Errorf("Error: TCP connection to %s failed: %v", address, err)
+				sugar.With("status", "failure").Errorf("Error: TCP connection to %s failed: %v", address, err)
 			} else {
 				defer conn.Close()
-				sugar.Infof("Success: TCP connection to %s succeeded", address)
+				sugar.With("status", "success").Infof("Success: TCP connection to %s succeeded", address)
 			}
 		case "HTTP":
 			resp, err := http.Get(fmt.Sprintf("http://%s", address))
 			if err != nil {
-				sugar.Errorf("Error: HTTP request to %s failed: %v", address, err)
+				sugar.With("status", "failure").Errorf("Error: HTTP request to %s failed: %v", address, err)
 			} else {
 				defer resp.Body.Close()
 				if resp.StatusCode == http.StatusOK {
-					sugar.Infof("Success: HTTP request to %s succeeded with status code %d", address, resp.StatusCode)
+					sugar.With("status", "success").Infof("Success: HTTP request to %s succeeded with status code %d", address, resp.StatusCode)
 				} else {
-					sugar.Errorf("Error: HTTP request to %s returned status code %d", address, resp.StatusCode)
+					sugar.With("status", "failure").Errorf("Error: HTTP request to %s returned status code %d", address, resp.StatusCode)
 				}
 			}
 		case "SMTP":
 			c, err := smtp.Dial(address)
 			if err != nil {
-				sugar.Errorf("Error: SMTP connection to %s failed: %v", address, err)
+				sugar.With("status", "failure").Errorf("Error: SMTP connection to %s failed: %v", address, err)
 			} else {
 				defer c.Close()
-				sugar.Infof("Success: SMTP connection to %s succeeded", address)
+				sugar.With("status", "success").Infof("Success: SMTP connection to %s succeeded", address)
 			}
 		case "DNS":
 			_, err := net.LookupHost(host)
 			if err != nil {
-				sugar.Errorf("Error: DNS resolution for %s failed: %v", host, err)
+				sugar.With("status", "failure").Errorf("Error: DNS resolution for %s failed: %v", host, err)
 			} else {
-				sugar.Infof("Success: DNS resolution for %s succeeded", host)
+				sugar.With("status", "success").Infof("Success: DNS resolution for %s succeeded", host)
 			}
 		default:
 			sugar.Fatalf("Error: Unsupported protocol %s", protocol)
