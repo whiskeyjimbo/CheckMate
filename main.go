@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 )
 
@@ -27,13 +28,31 @@ func main() {
 
 	address := fmt.Sprintf("%s:%s", host, port)
 
-	// TODO: net dial only supports tcp/udp will need to break this out to allow for other protocols
-	conn, err := net.Dial(protocol, address)
-	if err != nil {
-		fmt.Printf("Error: Port %s is not available on %s using %s protocol\n", port, host, protocol)
+	if protocol == "tcp" {
+		conn, err := net.Dial(protocol, address)
+		if err != nil {
+			fmt.Printf("Error: Port %s is not available on %s using %s protocol\n", port, host, protocol)
+			os.Exit(1)
+		}
+		defer conn.Close()
+
+		fmt.Printf("Success: Port %s is available on %s using %s protocol\n", port, host, protocol)
+	} else if protocol == "http" {
+		resp, err := http.Get(fmt.Sprintf("http://%s", address))
+		if err != nil {
+			fmt.Printf("Error: HTTP request to %s failed: %v\n", address, err)
+			os.Exit(1)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusOK {
+			fmt.Printf("Success: HTTP request to %s succeeded with status code %d\n", address, resp.StatusCode)
+		} else {
+			fmt.Printf("Error: HTTP request to %s returned status code %d\n", address, resp.StatusCode)
+			os.Exit(1)
+		}
+	} else {
+		fmt.Printf("Error: Unsupported protocol %s\n", protocol)
 		os.Exit(1)
 	}
-	defer conn.Close()
-
-	fmt.Printf("Success: Port %s is available on %s using %s protocol\n", port, host, protocol)
 }
