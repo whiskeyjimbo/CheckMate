@@ -16,18 +16,9 @@ func main() {
 	defer logger.Sync() // Flushes buffer, if any
 	sugar := logger.Sugar()
 
-	host := os.Getenv("HOST")
-	if host == "" {
-		host = "localhost"
-	}
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "80"
-	}
-	protocol := strings.ToUpper(os.Getenv("PROTOCOL"))
-	if protocol == "" {
-		protocol = "TCP"
-	}
+	host := getEnv("HOST", "localhost")
+	port := getEnv("PORT", "80")
+	protocol := getEnv("PROTOCOL", "http")
 
 	if host == "" || port == "" || protocol == "" {
 		sugar.Fatalf("Error: HOST, PORT, and PROTOCOL environment variables must be set.")
@@ -71,4 +62,11 @@ func main() {
 	default:
 		sugar.Fatalf("Error: Unsupported protocol %s", protocol)
 	}
+}
+
+func getEnv(key, defaultValue string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return defaultValue
 }
