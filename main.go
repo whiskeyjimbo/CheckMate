@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/smtp"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -28,7 +30,7 @@ func main() {
 
 	address := fmt.Sprintf("%s:%s", host, port)
 
-	switch protocol {
+	switch strings.ToLower(protocol) {
 	case "tcp":
 		conn, err := net.Dial(protocol, address)
 		if err != nil {
@@ -52,6 +54,14 @@ func main() {
 			fmt.Printf("Error: HTTP request to %s returned status code %d\n", address, resp.StatusCode)
 			os.Exit(1)
 		}
+	case "smtp":
+		c, err := smtp.Dial(address)
+		if err != nil {
+			fmt.Printf("Error: SMTP connection to %s failed: %v\n", address, err)
+			os.Exit(1)
+		}
+		defer c.Close()
+		fmt.Printf("Success: SMTP connection to %s succeeded\n", address)
 	default:
 		fmt.Printf("Error: Unsupported protocol %s\n", protocol)
 		os.Exit(1)
