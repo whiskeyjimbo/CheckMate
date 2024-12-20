@@ -7,60 +7,70 @@ import (
 	"net/smtp"
 	"os"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 )
 
 func main() {
 	logger, _ := zap.NewProduction()
-	defer logger.Sync() // Flushes buffer, if any
+	defer logger.Sync()
 	sugar := logger.Sugar()
 
 	host := getEnv("HOST", "localhost")
 	port := getEnv("PORT", "80")
 	protocol := getEnv("PROTOCOL", "http")
+	intervalStr := getEnv("INTERVAL", "10s")
 
-	if host == "" || port == "" || protocol == "" {
-		sugar.Fatalf("Error: HOST, PORT, and PROTOCOL environment variables must be set.")
+	interval, err := time.ParseDuration(intervalStr)
+	if err != nil {
+		sugar.Fatalf("Error: Invalid INTERVAL value: %v", err)
 	}
 
 	address := fmt.Sprintf("%s:%s", host, port)
 
-	switch strings.ToUpper(protocol) {
-	case "TCP":
-		conn, err := net.Dial(protocol, address)
-		if err != nil {
-			sugar.Fatalf("Error: %s connection to %s failed: %v", protocol, address, err)
+	for {
+		switch strings.ToUpper(protocol) {
+		case "TCP":
+			conn, err := net.Dial(protocol, address)
+			if err != nil {
+				sugar.Errorf("Error: TCP connection to %s failed: %v", address, err)
+			} else {
+				defer conn.Close()
+				sugar.Infof("Success: TCP connection to %s succeeded", address)
+			}
+		case "HTTP":
+			resp, err := http.Get(fmt.Sprintf("http://%s", address))
+			if err != nil {
+				sugar.Errorf("Error: HTTP request to %s failed: %v", address, err)
+			} else {
+				defer resp.Body.Close()
+				if resp.StatusCode == http.StatusOK {
+					sugar.Infof("Success: HTTP request to %s succeeded with status code %d", address, resp.StatusCode)
+				} else {
+					sugar.Errorf("Error: HTTP request to %s returned status code %d", address, resp.StatusCode)
+				}
+			}
+		case "SMTP":
+			c, err := smtp.Dial(address)
+			if err != nil {
+				sugar.Errorf("Error: SMTP connection to %s failed: %v", address, err)
+			} else {
+				defer c.Close()
+				sugar.Infof("Success: SMTP connection to %s succeeded", address)
+			}
+		case "DNS":
+			_, err := net.LookupHost(host)
+			if err != nil {
+				sugar.Errorf("Error: DNS resolution for %s failed: %v", host, err)
+			} else {
+				sugar.Infof("Success: DNS resolution for %s succeeded", host)
+			}
+		default:
+			sugar.Fatalf("Error: Unsupported protocol %s", protocol)
 		}
-		defer conn.Close()
-		sugar.Infof("Success: %s connection to %s succeeded", protocol, address)
-	case "HTTP":
-		resp, err := http.Get(fmt.Sprintf("http://%s", address))
-		if err != nil {
-			sugar.Fatalf("Error: %s request to %s failed: %v", protocol, address, err)
-		}
-		defer resp.Body.Close()
 
-		if resp.StatusCode == http.StatusOK {
-			sugar.Infof("Success: %s request to %s succeeded with status code %d", protocol, address, resp.StatusCode)
-		} else {
-			sugar.Fatalf("Error: %s request to %s returned status code %d", protocol, address, resp.StatusCode)
-		}
-	case "SMTP":
-		c, err := smtp.Dial(address)
-		if err != nil {
-			sugar.Fatalf("Error: %s connection to %s failed: %v", protocol, address, err)
-		}
-		defer c.Close()
-		sugar.Infof("Success: %s connection to %s succeeded", protocol, address)
-	case "DNS":
-		_, err := net.LookupHost(host)
-		if err != nil {
-			sugar.Fatalf("Error: %s resolution for %s failed: %v", protocol, host, err)
-		}
-		sugar.Infof("Success: %s resolution for %s succeeded", protocol, host)
-	default:
-		sugar.Fatalf("Error: Unsupported protocol %s", protocol)
+		time.Sleep(interval)
 	}
 }
 
