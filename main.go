@@ -2,22 +2,19 @@ package main
 
 import (
 	"fmt"
-	"net"
-	"net/http"
-	"net/smtp"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/whiskeyjimbo/CheckMate/pkg/checkers"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 )
 
 const (
 	defaultHost     = "localhost"
-	defaultPort     = "53"
-	defaultProtocol = "DNS"
+	defaultPort     = "2525"
+	defaultProtocol = "SMTP"
 	defaultInterval = "10"
 )
 
@@ -51,53 +48,27 @@ func main() {
 
 	address := fmt.Sprintf("%s:%s", config.Host, config.Port)
 
+	checkers := map[string]checkers.Checker{
+		"TCP":  checkers.TCPChecker{},
+		"HTTP": checkers.HTTPChecker{},
+		"SMTP": checkers.SMTPChecker{},
+		"DNS":  checkers.DNSChecker{},
+	}
+
 	for {
-		switch protocol := strings.ToUpper(config.Protocol); protocol {
-		case "TCP":
-			start := time.Now()
-			conn, err := net.Dial(protocol, address)
-			elapsed := time.Since(start).Microseconds()
-			if err != nil {
-				sugar.With("status", "failure").Errorf("Error: TCP connection to %s failed: %v", address, err)
-			} else {
-				defer conn.Close()
-				sugar.With("status", "success").With("response_us", elapsed).Infof("Success: TCP connection to %s succeeded", address)
-			}
-		case "HTTP":
-			start := time.Now()
-			resp, err := http.Get(fmt.Sprintf("http://%s", address))
-			elapsed := time.Since(start).Microseconds()
-			if err != nil {
-				sugar.With("status", "failure").Errorf("Error: HTTP request to %s failed: %v", address, err)
-			} else {
-				defer resp.Body.Close()
-				if resp.StatusCode == http.StatusOK {
-					sugar.With("status", "success").Infof("Success: HTTP request to %s succeeded with status code %d", address, resp.StatusCode)
-				} else {
-					sugar.With("status", "failure").With("response_us", elapsed).Errorf("Error: HTTP request to %s returned status code %d", address, resp.StatusCode)
-				}
-			}
-		case "SMTP":
-			start := time.Now()
-			c, err := smtp.Dial(address)
-			elapsed := time.Since(start).Microseconds()
-			if err != nil {
-				sugar.With("status", "failure").Errorf("Error: SMTP connection to %s failed: %v", address, err)
-			} else {
-				defer c.Close()
-				sugar.With("status", "success").With("response_us", elapsed).Infof("Success: SMTP connection to %s succeeded", address)
-			}
-		case "DNS":
-			start := time.Now()
-			_, err := net.LookupHost(config.Host)
-			elapsed := time.Since(start).Microseconds()
-			if err != nil {
-				sugar.With("status", "failure").Errorf("Error: DNS resolution for %s failed: %v", config.Host, err)
-			} else {
-				sugar.With("status", "success").With("response_us", elapsed).Infof("Success: DNS resolution for %s succeeded", config.Host)
-			}
-		default:
-			sugar.With("status", "failure").Fatalf("Error: Unsupported protocol %s", protocol)
+
+		checker, ok := checkers[config.Protocol]
+		if !ok {
+			sugar.Fatalf("Error: Unsupported protocol %s", config.Protocol)
+		}
+
+		success, elapsed, err := checker.Check(address)
+		if err != nil {
+			sugar.With("status", "failure").With("responseTime_us", elapsed).Errorf("Error: Check failed: %v", err)
+		} else if success {
+			sugar.With("status", "success").With("responseTime_us", elapsed).Infof("Success: Check succeeded")
+		} else {
+			sugar.With("status", "failure").With("responseTime_us", elapsed).Errorf("Error: Check failed")
 		}
 
 		time.Sleep(interval)
