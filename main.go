@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/smtp"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,11 +14,18 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const (
+	defaultHost     = "localhost"
+	defaultPort     = "53"
+	defaultProtocol = "DNS"
+	defaultInterval = "10"
+)
+
 type Config struct {
-	Host     string        `yaml:"host"`
-	Port     string        `yaml:"port"`
-	Protocol string        `yaml:"protocol"`
-	Interval time.Duration `yaml:"interval"`
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	Protocol string `yaml:"protocol"`
+	Interval string `yaml:"interval"`
 }
 
 func main() {
@@ -28,7 +36,17 @@ func main() {
 	configFile := getEnv("CONFIG_FILE", "config.yaml") // Default config file name
 	config, err := loadConfig(configFile)
 	if err != nil {
-		sugar.Fatalf("Error loading config: %v", err)
+		sugar.Infof("Error loading config, using default values: %v", err)
+	}
+
+	if _, err := strconv.Atoi(config.Interval); err == nil {
+		sugar.Infof("Error: Invalid interval %s, assuming Seconds: %s", config.Interval, config.Interval+"s")
+		config.Interval = config.Interval + "s"
+	}
+
+	interval, err := time.ParseDuration(config.Interval)
+	if err != nil {
+		sugar.Fatalf("Error: Invalid interval %s: %v", config.Interval, err)
 	}
 
 	address := fmt.Sprintf("%s:%s", config.Host, config.Port)
@@ -74,7 +92,7 @@ func main() {
 			sugar.With("status", "failure").Fatalf("Error: Unsupported protocol %s", protocol)
 		}
 
-		time.Sleep(config.Interval)
+		time.Sleep(interval)
 	}
 }
 
@@ -86,16 +104,21 @@ func getEnv(key, defaultValue string) string {
 }
 
 func loadConfig(configFile string) (*Config, error) {
-	data, err := os.ReadFile(configFile)
-	if err != nil {
-		return nil, fmt.Errorf("error reading config file: %w", err)
+	defaultConfig := Config{
+		Host:     defaultHost,
+		Port:     defaultPort,
+		Protocol: defaultProtocol,
+		Interval: defaultInterval,
 	}
 
-	var config Config
-	err = yaml.Unmarshal(data, &config)
+	fileContent, err := os.ReadFile(configFile)
 	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling YAML: %w", err)
+		return &defaultConfig, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	return &config, nil
+	if err := yaml.Unmarshal(fileContent, &defaultConfig); err != nil {
+		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	}
+
+	return &defaultConfig, nil
 }
