@@ -10,27 +10,31 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
+
+type Config struct {
+	Host     string        `yaml:"host"`
+	Port     string        `yaml:"port"`
+	Protocol string        `yaml:"protocol"`
+	Interval time.Duration `yaml:"interval"`
+}
 
 func main() {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 	sugar := logger.Sugar()
 
-	host := getEnv("HOST", "localhost")
-	port := getEnv("PORT", "80")
-	protocol := getEnv("PROTOCOL", "http")
-	intervalStr := getEnv("INTERVAL", "10s")
-
-	interval, err := time.ParseDuration(intervalStr)
+	configFile := getEnv("CONFIG_FILE", "config.yaml") // Default config file name
+	config, err := loadConfig(configFile)
 	if err != nil {
-		sugar.Fatalf("Error: Invalid INTERVAL value: %v", err)
+		sugar.Fatalf("Error loading config: %v", err)
 	}
 
-	address := fmt.Sprintf("%s:%s", host, port)
+	address := fmt.Sprintf("%s:%s", config.Host, config.Port)
 
 	for {
-		switch strings.ToUpper(protocol) {
+		switch protocol := strings.ToUpper(config.Protocol); protocol {
 		case "TCP":
 			conn, err := net.Dial(protocol, address)
 			if err != nil {
@@ -60,17 +64,17 @@ func main() {
 				sugar.With("status", "success").Infof("Success: SMTP connection to %s succeeded", address)
 			}
 		case "DNS":
-			_, err := net.LookupHost(host)
+			_, err := net.LookupHost(config.Host)
 			if err != nil {
-				sugar.With("status", "failure").Errorf("Error: DNS resolution for %s failed: %v", host, err)
+				sugar.With("status", "failure").Errorf("Error: DNS resolution for %s failed: %v", config.Host, err)
 			} else {
-				sugar.With("status", "success").Infof("Success: DNS resolution for %s succeeded", host)
+				sugar.With("status", "success").Infof("Success: DNS resolution for %s succeeded", config.Host)
 			}
 		default:
-			sugar.Fatalf("Error: Unsupported protocol %s", protocol)
+			sugar.With("status", "failure").Fatalf("Error: Unsupported protocol %s", protocol)
 		}
 
-		time.Sleep(interval)
+		time.Sleep(config.Interval)
 	}
 }
 
@@ -79,4 +83,19 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func loadConfig(configFile string) (*Config, error) {
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("error reading config file: %w", err)
+	}
+
+	var config Config
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling YAML: %w", err)
+	}
+
+	return &config, nil
 }
