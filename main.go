@@ -11,38 +11,43 @@ import (
 )
 
 func main() {
-	logger, _ := zap.NewProduction()
-	defer logger.Sync()
-	sugar := logger.Sugar()
+	zapL, _ := zap.NewProduction()
+	defer zapL.Sync()
+	logger := zapL.Sugar()
 
 	configFile := config.GetEnv("CONFIG_FILE", "config.yaml")
 	config, err := config.LoadConfig(configFile)
 	if err != nil {
-		sugar.Infof("Using default values: %v", err)
+		logger.Warnf("Using default values: %v", err)
 	}
 
 	interval, err := time.ParseDuration(config.Interval)
 	if err != nil {
-		sugar.Fatalf("Invalid interval %s: %v", config.Interval, err)
+		logger.Fatalf("Invalid interval %s: %v", config.Interval, err)
 	}
 
 	address := fmt.Sprintf("%s:%s", config.Host, config.Port)
 
 	checker, err := checkers.NewChecker(config.Protocol)
 	if err != nil {
-		sugar.Fatalf("Unsupported protocol %s", config.Protocol)
+		logger.Fatalf("Unsupported protocol %s", config.Protocol)
 	}
 
-	promMetricsEndpoint := metrics.NewPrometheusMetrics(sugar)
+	promMetricsEndpoint := metrics.NewPrometheusMetrics(logger)
 
 	for {
 		success, elapsed, err := checker.Check(address)
+		l := logger.
+			With("host", config.Host).
+			With("port", config.Port).
+			With("protocol", config.Protocol).
+			With("responseTime_us", elapsed)
 		if err != nil {
-			sugar.With("status", "failure").With("responseTime_us", elapsed).Errorf("Check failed: %v", err)
+			l.With("success", false).Error("Check failed: %v", err)
 		} else if success {
-			sugar.With("status", "success").With("responseTime_us", elapsed).Info("Check succeeded")
+			l.With("success", true).Info("Check succeeded")
 		} else {
-			sugar.With("status", "failure").With("responseTime_us", elapsed).Error("Check failed: Unknown")
+			l.With("success", false).Error("Check failed: Unknown")
 		}
 		promMetricsEndpoint.Update(config.Host, config.Port, config.Protocol, success, elapsed)
 
