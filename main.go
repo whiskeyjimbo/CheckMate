@@ -7,9 +7,15 @@ import (
 	"net/smtp"
 	"os"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
 func main() {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync() // Flushes buffer, if any
+	sugar := logger.Sugar()
+
 	host := os.Getenv("HOST")
 	if host == "" {
 		host = "localhost"
@@ -18,59 +24,51 @@ func main() {
 	if port == "" {
 		port = "80"
 	}
-	protocol := os.Getenv("PROTOCOL")
+	protocol := strings.ToUpper(os.Getenv("PROTOCOL"))
 	if protocol == "" {
-		protocol = "tcp"
+		protocol = "TCP"
 	}
 
 	if host == "" || port == "" || protocol == "" {
-		fmt.Println("Error: HOST, PORT, and PROTOCOL environment variables must be set.")
-		os.Exit(1)
+		sugar.Fatalf("Error: HOST, PORT, and PROTOCOL environment variables must be set.")
 	}
 
 	address := fmt.Sprintf("%s:%s", host, port)
 
-	switch strings.ToLower(protocol) {
-	case "tcp":
+	switch strings.ToUpper(protocol) {
+	case "TCP":
 		conn, err := net.Dial(protocol, address)
 		if err != nil {
-			fmt.Printf("Error: Port %s is not available on %s using %s protocol\n", port, host, protocol)
-			os.Exit(1)
+			sugar.Fatalf("Error: %s connection to %s failed: %v", protocol, address, err)
 		}
 		defer conn.Close()
-
-		fmt.Printf("Success: Port %s is available on %s using %s protocol\n", port, host, protocol)
-	case "http":
+		sugar.Infof("Success: %s connection to %s succeeded", protocol, address)
+	case "HTTP":
 		resp, err := http.Get(fmt.Sprintf("http://%s", address))
 		if err != nil {
-			fmt.Printf("Error: HTTP request to %s failed: %v\n", address, err)
-			os.Exit(1)
+			sugar.Fatalf("Error: %s request to %s failed: %v", protocol, address, err)
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusOK {
-			fmt.Printf("Success: HTTP request to %s succeeded with status code %d\n", address, resp.StatusCode)
+			sugar.Infof("Success: %s request to %s succeeded with status code %d", protocol, address, resp.StatusCode)
 		} else {
-			fmt.Printf("Error: HTTP request to %s returned status code %d\n", address, resp.StatusCode)
-			os.Exit(1)
+			sugar.Fatalf("Error: %s request to %s returned status code %d", protocol, address, resp.StatusCode)
 		}
-	case "smtp":
+	case "SMTP":
 		c, err := smtp.Dial(address)
 		if err != nil {
-			fmt.Printf("Error: SMTP connection to %s failed: %v\n", address, err)
-			os.Exit(1)
+			sugar.Fatalf("Error: %s connection to %s failed: %v", protocol, address, err)
 		}
 		defer c.Close()
-		fmt.Printf("Success: SMTP connection to %s succeeded\n", address)
-	case "dns":
+		sugar.Infof("Success: %s connection to %s succeeded", protocol, address)
+	case "DNS":
 		_, err := net.LookupHost(host)
 		if err != nil {
-			fmt.Printf("Error: DNS resolution for %s failed: %v\n", host, err)
-			os.Exit(1)
+			sugar.Fatalf("Error: %s resolution for %s failed: %v", protocol, host, err)
 		}
-		fmt.Printf("Success: DNS resolution for %s succeeded\n", host)
+		sugar.Infof("Success: %s resolution for %s succeeded", protocol, host)
 	default:
-		fmt.Printf("Error: Unsupported protocol %s\n", protocol)
-		os.Exit(1)
+		sugar.Fatalf("Error: Unsupported protocol %s", protocol)
 	}
 }
