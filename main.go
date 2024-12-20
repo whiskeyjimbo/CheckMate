@@ -28,7 +28,8 @@ func main() {
 
 	address := fmt.Sprintf("%s:%s", host, port)
 
-	if protocol == "tcp" {
+	switch protocol {
+	case "tcp":
 		conn, err := net.Dial(protocol, address)
 		if err != nil {
 			fmt.Printf("Error: Port %s is not available on %s using %s protocol\n", port, host, protocol)
@@ -37,7 +38,7 @@ func main() {
 		defer conn.Close()
 
 		fmt.Printf("Success: Port %s is available on %s using %s protocol\n", port, host, protocol)
-	} else if protocol == "http" {
+	case "http":
 		resp, err := http.Get(fmt.Sprintf("http://%s", address))
 		if err != nil {
 			fmt.Printf("Error: HTTP request to %s failed: %v\n", address, err)
@@ -51,7 +52,7 @@ func main() {
 			fmt.Printf("Error: HTTP request to %s returned status code %d\n", address, resp.StatusCode)
 			os.Exit(1)
 		}
-	} else {
+	default:
 		fmt.Printf("Error: Unsupported protocol %s\n", protocol)
 		os.Exit(1)
 	}
