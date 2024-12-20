@@ -62,6 +62,13 @@ func main() {
 		}
 		defer c.Close()
 		fmt.Printf("Success: SMTP connection to %s succeeded\n", address)
+	case "dns":
+		_, err := net.LookupHost(host)
+		if err != nil {
+			fmt.Printf("Error: DNS resolution for %s failed: %v\n", host, err)
+			os.Exit(1)
+		}
+		fmt.Printf("Success: DNS resolution for %s succeeded\n", host)
 	default:
 		fmt.Printf("Error: Unsupported protocol %s\n", protocol)
 		os.Exit(1)
