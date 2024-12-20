@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/whiskeyjimbo/CheckMate/pkg/checkers"
@@ -30,20 +31,19 @@ func main() {
 	defer logger.Sync()
 	sugar := logger.Sugar()
 
-	configFile := getEnv("CONFIG_FILE", "config.yaml") // Default config file name
+	configFile := getEnv("CONFIG_FILE", "config.yaml")
 	config, err := loadConfig(configFile)
 	if err != nil {
-		sugar.Infof("Error loading config, using default values: %v", err)
+		sugar.Infof("Using default values: %v", err)
 	}
-
 	if _, err := strconv.Atoi(config.Interval); err == nil {
-		sugar.Infof("Error: Invalid interval %s, assuming Seconds: %s", config.Interval, config.Interval+"s")
+		sugar.Infof("Invalid interval %s, assuming Seconds: %s", config.Interval, config.Interval+"s")
 		config.Interval = config.Interval + "s"
 	}
 
 	interval, err := time.ParseDuration(config.Interval)
 	if err != nil {
-		sugar.Fatalf("Error: Invalid interval %s: %v", config.Interval, err)
+		sugar.Fatalf("Invalid interval %s: %v", config.Interval, err)
 	}
 
 	address := fmt.Sprintf("%s:%s", config.Host, config.Port)
@@ -55,20 +55,20 @@ func main() {
 		"DNS":  checkers.DNSChecker{},
 	}
 
+	protocol := strings.ToUpper(config.Protocol)
+	checker, ok := checkers[protocol]
+	if !ok {
+		sugar.Fatalf("Unsupported protocol %s", protocol)
+	}
+
 	for {
-
-		checker, ok := checkers[config.Protocol]
-		if !ok {
-			sugar.Fatalf("Error: Unsupported protocol %s", config.Protocol)
-		}
-
 		success, elapsed, err := checker.Check(address)
 		if err != nil {
-			sugar.With("status", "failure").With("responseTime_us", elapsed).Errorf("Error: Check failed: %v", err)
+			sugar.With("status", "failure").With("responseTime_us", elapsed).Errorf("Check failed: %v", err)
 		} else if success {
-			sugar.With("status", "success").With("responseTime_us", elapsed).Infof("Success: Check succeeded")
+			sugar.With("status", "success").With("responseTime_us", elapsed).Info("Check succeeded")
 		} else {
-			sugar.With("status", "failure").With("responseTime_us", elapsed).Errorf("Error: Check failed")
+			sugar.With("status", "failure").With("responseTime_us", elapsed).Error("Check failed: Unknown")
 		}
 
 		time.Sleep(interval)
