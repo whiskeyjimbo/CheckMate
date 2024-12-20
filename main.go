@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/whiskeyjimbo/CheckMate/pkg/checkers"
+	"github.com/whiskeyjimbo/CheckMate/pkg/metrics"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 )
@@ -54,6 +55,8 @@ func main() {
 		sugar.Fatalf("Unsupported protocol %s", protocol)
 	}
 
+	promMetricsEndpoint := metrics.NewPrometheusMetrics(sugar)
+
 	for {
 		success, elapsed, err := checker.Check(address)
 		if err != nil {
@@ -63,6 +66,7 @@ func main() {
 		} else {
 			sugar.With("status", "failure").With("responseTime_us", elapsed).Error("Check failed: Unknown")
 		}
+		promMetricsEndpoint.Update(config.Host, config.Port, config.Protocol, success, elapsed)
 
 		time.Sleep(interval)
 	}
