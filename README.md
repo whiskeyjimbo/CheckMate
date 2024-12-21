@@ -13,10 +13,11 @@ A simple and extensible Go application for monitoring service availability and h
 
 ## TODO
 - [ ] Add more protocols
-- [ ] Add notifications
+- [ ] Add notifications and support for notification rules
 - [ ] Add database support
 - [X] multiple host support
 - [X] hosts with multiple protocols/ports
+- [ ] tags for hosts and ports
 - [ ] docker image
 
 ## Getting Started
