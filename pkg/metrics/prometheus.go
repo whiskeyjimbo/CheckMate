@@ -1,57 +1,61 @@
 package metrics
 
 import (
-	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
 )
 
 type PrometheusMetrics struct {
-	checkSuccess  *prometheus.GaugeVec
-	checkDuration *prometheus.HistogramVec
+	logger                *zap.SugaredLogger
+	checkStatusGauge      *prometheus.GaugeVec
+	checkLatencyGauge     *prometheus.GaugeVec
+	checkLatencyHistogram *prometheus.HistogramVec
 }
 
-func NewPrometheusMetrics(sugar *zap.SugaredLogger) *PrometheusMetrics {
+func NewPrometheusMetrics(logger *zap.SugaredLogger) *PrometheusMetrics {
 	// this probably wont be super accurate based off of polling, maybe i should switch to a counter
-	checkSuccess := prometheus.NewGaugeVec(
+	statusGauge := promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "port_check_success",
-			Help: "Indicates if the port check was successful (1 for success, 0 for failure)",
+			Name: "check_success",
+			Help: "Status of the check (1 for success, 0 for failure)",
 		},
 		[]string{"host", "port", "protocol"},
 	)
-	checkDuration := prometheus.NewHistogramVec(
+	latencyGauge := promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "check_latency_milliseconds",
+			Help: "Gauge of the check duration in milliseconds",
+		},
+		[]string{"host", "port", "protocol"},
+	)
+	latencyHistogram := promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "port_check_duration_seconds",
-			Help:    "Histogram of the port check duration in seconds",
+			Name:    "check_latency_milliseconds_histogram",
+			Help:    "Histogram of the check duration in milliseconds",
 			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"host", "port", "protocol"},
 	)
-	prometheus.MustRegister(checkSuccess, checkDuration)
-
-	go func() {
-		http.Handle("/metrics", promhttp.Handler())
-		sugar.Info("Starting Prometheus metrics server on :9100")
-		err := http.ListenAndServe(":9100", nil)
-		if err != nil {
-			sugar.Fatalf("Error starting Prometheus metrics server: %v", err)
-		}
-	}()
 
 	return &PrometheusMetrics{
-		checkSuccess:  checkSuccess,
-		checkDuration: checkDuration,
+		logger:                logger,
+		checkStatusGauge:      statusGauge,
+		checkLatencyGauge:     latencyGauge,
+		checkLatencyHistogram: latencyHistogram,
 	}
 }
 
-func (p *PrometheusMetrics) Update(host, port, protocol string, success bool, elapsed int64) {
+func (p *PrometheusMetrics) Update(host string, port string, protocol string, success bool, elapsed time.Duration) {
+	statusValue := 0.0
 	if success {
-		p.checkSuccess.WithLabelValues(host, port, protocol).Set(1)
-	} else {
-		p.checkSuccess.WithLabelValues(host, port, protocol).Set(0)
+		statusValue = 1.0
 	}
-	p.checkDuration.WithLabelValues(host, port, protocol).Observe(float64(elapsed) / 1e6)
+	p.checkStatusGauge.WithLabelValues(host, port, protocol).Set(statusValue)
+
+	latencyMs := float64(elapsed.Milliseconds())
+	p.checkLatencyGauge.WithLabelValues(host, port, protocol).Set(latencyMs)
+	p.checkLatencyHistogram.WithLabelValues(host, port, protocol).Observe(latencyMs)
 }
