@@ -9,11 +9,15 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type HostConfig struct {
-	Host     string `yaml:"host"`
+type CheckConfig struct {
 	Port     string `yaml:"port"`
 	Protocol string `yaml:"protocol"`
 	Interval string `yaml:"interval"`
+}
+
+type HostConfig struct {
+	Host   string        `yaml:"host"`
+	Checks []CheckConfig `yaml:"checks"`
 }
 
 type Config struct {
@@ -31,14 +35,16 @@ func LoadConfig(configFile string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	for i := range config.Hosts {
-		normalizeConfig(&config.Hosts[i])
+	for _, host := range config.Hosts {
+		for i := range host.Checks {
+			normalizeConfig(&host.Checks[i])
+		}
 	}
 
 	return &config, nil
 }
 
-func normalizeConfig(c *HostConfig) {
+func normalizeConfig(c *CheckConfig) {
 	c.Protocol = strings.ToUpper(c.Protocol)
 	if _, err := strconv.Atoi(c.Interval); err == nil {
 		c.Interval = c.Interval + "s"

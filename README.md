@@ -16,7 +16,7 @@ A simple and extensible Go application for monitoring service availability and h
 - [ ] Add notifications
 - [ ] Add database support
 - [X] multiple host support
-- [ ] hosts with multiple protocols/ports
+- [X] hosts with multiple protocols/ports
 - [ ] docker image
 
 ## Getting Started
@@ -41,13 +41,18 @@ A simple and extensible Go application for monitoring service availability and h
     ```YAML
     hosts:
     - host: localhost
-      port: 2525
-      protocol: SMTP
-      interval: 5s
+      checks:
+      - port: 8080
+        protocol: HTTP
+        interval: 10s
+      - port: 25
+        protocol: SMTP
+        interval: 30s 
     - host: 127.0.0.1
-      port: 2525
-      protocol: SMTP
-      interval: 10s
+      checks:
+      - port: 22
+        protocol: TCP
+        interval: 30s
     ```
 2. Set the following environment variables:
     ```bash

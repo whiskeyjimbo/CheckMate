@@ -33,7 +33,9 @@ func main() {
 	promMetricsEndpoint := metrics.NewPrometheusMetrics(logger)
 
 	for _, hostConfig := range config.Hosts {
-		go monitorHost(logger, hostConfig, promMetricsEndpoint)
+		for _, checkConfig := range hostConfig.Checks {
+			go monitorHost(logger, hostConfig.Host, checkConfig, promMetricsEndpoint)
+		}
 	}
 
 	http.Handle("/metrics", promhttp.Handler())
@@ -50,34 +52,34 @@ func main() {
 	logger.Info("Received shutdown signal, exiting...")
 }
 
-func monitorHost(logger *zap.SugaredLogger, hostConfig config.HostConfig, promMetricsEndpoint *metrics.PrometheusMetrics) {
-	interval, err := time.ParseDuration(hostConfig.Interval)
+func monitorHost(logger *zap.SugaredLogger, host string, checkConfig config.CheckConfig, promMetricsEndpoint *metrics.PrometheusMetrics) {
+	interval, err := time.ParseDuration(checkConfig.Interval)
 	if err != nil {
-		logger.Fatalf("Invalid interval %s: %v", hostConfig.Interval, err)
+		logger.Fatalf("Invalid interval %s: %v", checkConfig.Interval, err)
 	}
 
-	address := fmt.Sprintf("%s:%s", hostConfig.Host, hostConfig.Port)
+	address := fmt.Sprintf("%s:%s", host, checkConfig.Port)
 
-	checker, err := checkers.NewChecker(hostConfig.Protocol)
+	checker, err := checkers.NewChecker(checkConfig.Protocol)
 	if err != nil {
-		logger.Fatalf("Unsupported protocol %s", hostConfig.Protocol)
+		logger.Fatalf("Unsupported protocol %s", checkConfig.Protocol)
 	}
 
 	for {
 		success, elapsed, err := checker.Check(address)
 		l := logger.
-			With("host", hostConfig.Host).
-			With("port", hostConfig.Port).
-			With("protocol", hostConfig.Protocol).
+			With("host", host).
+			With("port", checkConfig.Port).
+			With("protocol", checkConfig.Protocol).
 			With("responseTime_us", elapsed)
 		if err != nil {
 			l.With("success", false).Warnf("Check failed: %v", err)
 		} else if success {
 			l.With("success", true).Infof("Check succeeded")
 		} else {
-			l.With("success", false).Errorf("Check failed: Unknown")
+			l.With("success", false).Error("Check failed: Unknown")
 		}
-		promMetricsEndpoint.Update(hostConfig.Host, hostConfig.Port, hostConfig.Protocol, success, time.Duration(elapsed)*time.Microsecond)
+		promMetricsEndpoint.Update(host, checkConfig.Port, checkConfig.Protocol, success, time.Duration(elapsed)*time.Microsecond)
 
 		// TODO: i wonder if i should remove the elapsed time from the sleep interval?
 		time.Sleep(interval)
