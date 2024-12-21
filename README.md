@@ -69,5 +69,26 @@ A simple and extensible Go application for monitoring service availability and h
     ```
 3. Add the new checker to the checkersMap in main.go.
 
+### Adding New Database Support (stubbed)
+1. Create a new file in the pkg/database directory.
+2. Implement the Database interface:
+    ```Go
+    type Database interface {
+        InsertCheck(host, port, protocol, status string, elapsed int64) error
+        Close() error
+    }
+    ```
+3. tbd
+
+### Adding New Notifications (stubbed)
+1. Create a new file in the pkg/notifications directory.
+2. Implement the notifier interface:
+    ```Go
+    type Notifier interface {
+        SendNotification(message string) error
+    }
+    ```
+3. tbd
+
 ## License
 This project is licensed under the GPLv3 License - see the LICENSE file for details
