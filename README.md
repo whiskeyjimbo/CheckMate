@@ -1,101 +1,145 @@
 # CheckMate
 
-A simple and extensible Go application for monitoring service availability and health.
+![License](https://img.shields.io/badge/license-GPLv3-blue.svg)
+![Go Version](https://img.shields.io/badge/language-go-blue.svg)
+
+CheckMate is a service monitoring tool written in Go that provides real-time health checks and metrics for infrastructure. It supports multiple protocols, customizable rules, and Prometheus integration.
+
+DISCLAIMER: This is a personal project and is not meant to be used in a production environment as it is not feature complete nor secure nor tested and under heavy development. 
 
 ## Features
 
-* Checks TCP, HTTP, SMTP, and DNS (not sure if this one is correct) protocols.
-* Configurable check interval and target host/port/protocol.
-* Customizable notifications (STUB).
-* Stores check results in a database (STUB).
-* Exposes metrics for Prometheus.
-* modular design for easy extensibility ?.
+### Core Features
+- Multi-protocol support (TCP, HTTP, SMTP, DNS(*))
+- Configurable check intervals per service
+- Prometheus metrics integration
+- Rule-based monitoring with custom conditions (WIP)
+- Structured logging with Zap
+- Concurrent monitoring of multiple hosts and services
 
-## TODO
-- [ ] Add more protocols 
-- [ ] Add notifications and support for notification rules
-- [ ] configurable notification thresholds (eg. dont spam)
-- [ ] Add database support
-- [X] multiple host support
-- [X] hosts with multiple protocols/ports
-- [ ] tags for hosts and ports
-- [ ] docker image
+### Metrics & Monitoring
+- Service availability status
+- Response time measurements
+- Custom rule evaluation (WIP)
+- Prometheus-compatible metrics endpoint
+- Downtime tracking (WIP)
 
-## Getting Started
+### Technical Features
+- YAML-based configuration
+- Modular architecture for easy extension using interfaces
+
+## Installation
 
 ### Prerequisites
+- Go
+- Git
 
-* Go 
-
-### Installation
+### Quick Start
 
 1. Clone the repository:
-   ```bash
-   git clone [https://github.com/your-username/port-checker.git](https://github.com/your-username/port-checker.git)
-   ```
+```bash
+git clone https://github.com/whiskeyjimbo/CheckMate.git
+cd CheckMate
+```
+
 2. Build the application:
-    ``` Bash
-    cd port-checker
-    go build
-    ```
-### Configuration
-1. Create a config.yaml file with the following structure:
-    ```YAML
-    hosts:
-    - host: localhost
-      checks:
-      - port: 8080
+```bash
+go build
+```
+
+## Configuration
+
+Create a `config.yaml` file with your service definitions and monitoring rules:
+
+```yaml
+hosts:
+  - host: example.com
+    checks:
+      - port: "80"
         protocol: HTTP
-        interval: 10s
-      - port: 25
-        protocol: SMTP
-        interval: 30s 
-    - host: 127.0.0.1
-      checks:
-      - port: 22
-        protocol: TCP
         interval: 30s
-    ```
-2. Set the following environment variables:
-    ```bash
-    export CONFIG_FILE=/path/to/config.yaml # Path to the configuration file 
-    ```
-3. Running the Application
-    ```Bash
-    go build -o checkmate
-    ./checkmate
-    ```
-## Extending the Application
-### Adding New Checkers
-1. Create a new file in the pkg/checkers directory.
-2. Implement the Checker interface:
-    ```Go
-    type Checker interface {
-        Check(address string) (success bool, responseTime int64, err error)
-    }
-    ```
-3. Add the new checker to the checkersMap in main.go.
+      - port: "443"
+        protocol: TCP
+        interval: 1m
+rules:
+  - name: high_latency
+    condition: "responseTime > 5s"
+  - name: extended_downtime
+    condition: "downtime > 5m"
+```
 
-### Adding New Database Support (stubbed)
-1. Create a new file in the pkg/database directory.
-2. Implement the Database interface:
-    ```Go
-    type Database interface {
-        InsertCheck(host, port, protocol, status string, elapsed int64) error
-        Close() error
-    }
-    ```
-3. tbd
+### Configuration Options
 
-### Adding New Notifications (stubbed)
-1. Create a new file in the pkg/notifications directory.
-2. Implement the notifier interface:
-    ```Go
-    type Notifier interface {
-        SendNotification(message string) error
+#### Host Configuration
+- `host`: Target hostname or IP address
+- `checks`: List of service checks
+  - `port`: Service port
+  - `protocol`: Check protocol (HTTP, TCP, SMTP, DNS)
+  - `interval`: Check frequency (e.g., "30s", "1m")
+
+#### Rule Configuration
+- `name`: Rule identifier
+- `condition`: Expression using variables:
+  - `responseTime`: Service response time
+  - `downtime`: Accumulated downtime
+
+## Metrics
+
+CheckMate exposes Prometheus metrics at `:9100/metrics` including:
+- `check_success`: Service availability (1 = up, 0 = down)
+- `check_latency_milliseconds`: Response time gauge
+- `check_latency_milliseconds_histogram`: Response time distribution
+
+## Extending CheckMate
+
+### Adding New Protocols
+
+1. Create a new checker in `pkg/checkers/`:
+```go
+type NewProtocolChecker struct{}
+
+func (c NewProtocolChecker) Check(address string) (success bool, responseTime int64, err error) {
+    // Implement protocol check
+}
+```
+
+2. Register in `pkg/checkers/checker.go`:
+```go
+func NewChecker(protocol string) (Checker, error) {
+    switch protocol {
+    case "NEWPROTOCOL":
+        return &NewProtocolChecker{}, nil
+    // ...
     }
-    ```
-3. tbd
+}
+```
+
+### Adding Database Support
+
+Implement the Database interface in `pkg/database/`:
+```go
+type Database interface {
+    InsertCheck(host, port, protocol, status string, elapsed int64) error
+    Close() error
+}
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
-This project is licensed under the GPLv3 License - see the LICENSE file for details
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+## Roadmap
+
+- [ ] Additional protocol support
+- [ ] Notification system integration
+- [ ] Configurable notification thresholds
+- [ ] database support
+- [x] Multiple host monitoring
+- [x] Multi-protocol per host
+- [ ] Service tagging system
+- [ ] Docker container 
+- [ ] Web UI for monitoring (MAYBE) 
