@@ -62,25 +62,12 @@ func monitorHost(
 	for {
 		checkStart := time.Now()
 		success, elapsed, err := checker.Check(address)
-		l := logger.
-			With("host", host).
-			With("port", checkConfig.Port).
-			With("protocol", checkConfig.Protocol).
-			With("responseTime_us", elapsed)
-		if err != nil {
-			l.With("success", false).Warnf("Check failed: %v", err)
-		} else if success {
-			l.With("success", true).Infof("Check succeeded")
-		} else {
-			l.With("success", false).Error("Check failed: Unknown")
-		}
+
+		logCheckResult(logger, host, checkConfig, success, err, time.Duration(elapsed)*time.Microsecond)
+
 		promMetricsEndpoint.Update(host, checkConfig.Port, checkConfig.Protocol, success, time.Duration(elapsed)*time.Microsecond)
 
-		if err != nil || !success {
-			downtime += interval
-		} else {
-			downtime = 0
-		}
+		downtime = updateDowntime(downtime, interval, success)
 
 		for _, rule := range confRules {
 			if time.Since(lastRuleEval[rule.Name]) < time.Minute {
@@ -114,11 +101,35 @@ func initLogger() *zap.SugaredLogger {
     return zapL.Sugar()
 }
 
+func logCheckResult(logger *zap.SugaredLogger, host string, checkConfig config.CheckConfig, success bool, err error, elapsed time.Duration) {
+    l := logger.With(
+        "host", host,
+        "port", checkConfig.Port,
+        "protocol", checkConfig.Protocol,
+        "responseTime_us", elapsed,
+    )
+
+    if err != nil {
+        l.With("success", false).Warnf("Check failed: %v", err)
+    } else if success {
+        l.With("success", true).Info("Check succeeded")
+    } else {
+        l.With("success", false).Error("Check failed: Unknown")
+    }
+}
+
 func sleepUntilNextCheck(interval, elapsed time.Duration) {
     sleepDuration := interval - elapsed
     if sleepDuration > 0 {
         time.Sleep(sleepDuration)
     }
+}
+
+func updateDowntime(currentDowntime, interval time.Duration, success bool) time.Duration {
+    if !success {
+        return currentDowntime + interval
+    }
+    return 0
 }
 
 func waitForShutdown(logger *zap.SugaredLogger) {
