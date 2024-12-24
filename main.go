@@ -122,10 +122,13 @@ func monitorHost(
 			}
 		}
 
-		elapsed := time.Since(checkStart)
-		sleepDuration := interval - elapsed
-		if sleepDuration > 0 {
-			time.Sleep(sleepDuration)
-		}
+		sleepUntilNextCheck(interval, time.Since(checkStart))
 	}
+}
+
+func sleepUntilNextCheck(interval, elapsed time.Duration) {
+    sleepDuration := interval - elapsed
+    if sleepDuration > 0 {
+        time.Sleep(sleepDuration)
+    }
 }
