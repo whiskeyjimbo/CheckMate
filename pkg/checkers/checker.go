@@ -1,6 +1,7 @@
 package checkers
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -21,7 +22,7 @@ type CheckResult struct {
 }
 
 type Checker interface {
-	Check(address string) CheckResult
+	Check(ctx context.Context, address string) CheckResult
 	Protocol() Protocol
 }
 

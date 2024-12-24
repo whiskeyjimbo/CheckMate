@@ -1,6 +1,7 @@
 package checkers
 
 import (
+	"context"
 	"net"
 	"time"
 )
@@ -13,9 +14,15 @@ func (c *TCPChecker) Protocol() Protocol {
 	return c.protocol
 }
 
-func (c *TCPChecker) Check(address string) CheckResult {
+func (c *TCPChecker) Check(ctx context.Context, address string) CheckResult {
 	start := time.Now()
-	conn, err := net.DialTimeout("tcp", address, 10*time.Second)
+	
+	// Create a dialer with context support
+	dialer := net.Dialer{
+		Timeout: 10 * time.Second,
+	}
+	
+	conn, err := dialer.DialContext(ctx, "tcp", address)
 	elapsed := time.Since(start)
 
 	if err != nil {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -61,7 +62,9 @@ func monitorHost(
 
 	for {
 		checkStart := time.Now()
-		result := checker.Check(address)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		result := checker.Check(ctx, address)
+		cancel()
 
 		logCheckResult(logger, host, checkConfig, result.Success, result.Error, result.ResponseTime)
 

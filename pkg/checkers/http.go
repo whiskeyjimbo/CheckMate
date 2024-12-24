@@ -1,6 +1,7 @@
 package checkers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -14,13 +15,22 @@ func (c *HTTPChecker) Protocol() Protocol {
 	return c.protocol
 }
 
-func (c *HTTPChecker) Check(address string) CheckResult {
+func (c *HTTPChecker) Check(ctx context.Context, address string) CheckResult {
 	start := time.Now()
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 	
-	resp, err := client.Get(fmt.Sprintf("http://%s", address))
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s", address), nil)
+	if err != nil {
+		return CheckResult{
+			Success:      false,
+			ResponseTime: time.Since(start),
+			Error:        err,
+		}
+	}
+	
+	resp, err := client.Do(req)
 	elapsed := time.Since(start)
 
 	if err != nil {

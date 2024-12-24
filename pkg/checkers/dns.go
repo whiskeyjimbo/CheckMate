@@ -13,7 +13,8 @@ func (c *DNSChecker) Protocol() Protocol {
 	return c.protocol
 }
 
-func (c *DNSChecker) Check(address string) CheckResult {
+func (c *DNSChecker) Check(ctx context.Context, address string) CheckResult {
+	_ = ctx // TODO: figure out context in dns
 	start := time.Now()
 	_, err := net.LookupHost(address)
 	elapsed := time.Since(start)
