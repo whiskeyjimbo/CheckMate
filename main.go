@@ -12,6 +12,7 @@ import (
 	"github.com/whiskeyjimbo/CheckMate/pkg/checkers"
 	"github.com/whiskeyjimbo/CheckMate/pkg/config"
 	"github.com/whiskeyjimbo/CheckMate/pkg/metrics"
+	"github.com/whiskeyjimbo/CheckMate/pkg/rules"
 	"go.uber.org/zap"
 )
 
@@ -30,11 +31,13 @@ func main() {
 		logger.Fatalf("Failed to load config: %v", err)
 	}
 
+	confRules := config.RawRules
+
 	promMetricsEndpoint := metrics.NewPrometheusMetrics(logger)
 
 	for _, hostConfig := range config.Hosts {
 		for _, checkConfig := range hostConfig.Checks {
-			go monitorHost(logger, hostConfig.Host, checkConfig, promMetricsEndpoint)
+			go monitorHost(logger, hostConfig.Host, checkConfig, promMetricsEndpoint, confRules)
 		}
 	}
 
@@ -52,7 +55,13 @@ func main() {
 	logger.Info("Received shutdown signal, exiting...")
 }
 
-func monitorHost(logger *zap.SugaredLogger, host string, checkConfig config.CheckConfig, promMetricsEndpoint *metrics.PrometheusMetrics) {
+func monitorHost(
+	logger *zap.SugaredLogger,
+	host string,
+	checkConfig config.CheckConfig,
+	promMetricsEndpoint *metrics.PrometheusMetrics,
+	confRules []rules.Rule,
+) {
 	interval, err := time.ParseDuration(checkConfig.Interval)
 	if err != nil {
 		logger.Fatalf("Invalid interval %s: %v", checkConfig.Interval, err)
@@ -64,6 +73,8 @@ func monitorHost(logger *zap.SugaredLogger, host string, checkConfig config.Chec
 	if err != nil {
 		logger.Fatalf("Unsupported protocol %s", checkConfig.Protocol)
 	}
+
+	var downtime time.Duration
 
 	for {
 		success, elapsed, err := checker.Check(address)
@@ -81,6 +92,25 @@ func monitorHost(logger *zap.SugaredLogger, host string, checkConfig config.Chec
 		}
 		promMetricsEndpoint.Update(host, checkConfig.Port, checkConfig.Protocol, success, time.Duration(elapsed)*time.Microsecond)
 
+		if err != nil || !success {
+			downtime += interval
+		} else {
+			downtime = 0
+		}
+
+		// TODO: this is a niave implementation of the rule evaluation, it will work for now, but should be refactored to be independent of the checkers interval.
+		// it should also have some kind of interval for the trigger so it doesnt get too spammy
+		for _, rule := range confRules {
+			triggered, err := rules.EvaluateRule(rule, downtime, time.Duration(elapsed)*time.Microsecond)
+			if err != nil {
+				logger.Errorf("Failed to evaluate rule %s: %v", rule.Name, err)
+				continue
+			}
+
+			if triggered {
+				logger.Warnf("Rule triggered: host: %s, port: %s, protocol: %s, rule: %s", host, checkConfig.Port, checkConfig.Protocol, rule.Name)
+			}
+		}
 		// TODO: i wonder if i should remove the elapsed time from the sleep interval?
 		time.Sleep(interval)
 	}
