@@ -2,13 +2,11 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/whiskeyjimbo/CheckMate/pkg/checkers"
 	"github.com/whiskeyjimbo/CheckMate/pkg/config"
 	"github.com/whiskeyjimbo/CheckMate/pkg/metrics"
@@ -24,6 +22,8 @@ func main() {
 		logger.Fatalf("Failed to load config: %v", err)
 	}
 
+	metrics.StartMetricsServer(logger)
+
 	confRules := config.RawRules
 
 	promMetricsEndpoint := metrics.NewPrometheusMetrics(logger)
@@ -32,11 +32,6 @@ func main() {
 		for _, checkConfig := range hostConfig.Checks {
 			go monitorHost(logger, hostConfig.Host, checkConfig, promMetricsEndpoint, confRules)
 		}
-	}
-
-	err = metrics.StartMetricsServer(logger)
-	if err != nil {
-		logger.Fatalf("Failed to start Prometheus metrics server: %v", err)
 	}
 
 	waitForShutdown(logger)

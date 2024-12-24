@@ -3,7 +3,9 @@ package metrics
 import (
 	"time"
 
+	"net/http"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
 )
@@ -15,11 +17,12 @@ type PrometheusMetrics struct {
 	checkLatencyHistogram *prometheus.HistogramVec
 }
 
-func StartMetricsServer(logger *zap.SugaredLogger) (error){
+func StartMetricsServer(logger *zap.SugaredLogger) {
     http.Handle("/metrics", promhttp.Handler())
+
     go func() {
         if err := http.ListenAndServe(":9100", nil); err != nil {
-            logger.Fatalf("Failed to start Prometheus metrics server: %v", err)
+			logger.Fatalf("Failed to start Prometheus metrics server: %v", err)
         }
     }()
 }
