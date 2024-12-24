@@ -52,11 +52,7 @@ func main() {
 		}
 	}()
 
-	chanLength := len(config.Hosts) - 1
-	c := make(chan os.Signal, chanLength)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	<-c
-	logger.Info("Received shutdown signal, exiting...")
+	waitForShutdown(logger)
 }
 
 func monitorHost(
@@ -132,3 +128,11 @@ func sleepUntilNextCheck(interval, elapsed time.Duration) {
         time.Sleep(sleepDuration)
     }
 }
+
+func waitForShutdown(logger *zap.SugaredLogger) {
+    c := make(chan os.Signal, 1)
+    signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+    <-c
+    logger.Info("Received shutdown signal, exiting...")
+}
+
