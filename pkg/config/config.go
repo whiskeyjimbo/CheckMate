@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/whiskeyjimbo/CheckMate/pkg/rules"
 	"gopkg.in/yaml.v2"
 )
 
@@ -21,7 +22,8 @@ type HostConfig struct {
 }
 
 type Config struct {
-	Hosts []HostConfig `yaml:"hosts"`
+	Hosts    []HostConfig `yaml:"hosts"`
+	RawRules []rules.Rule `yaml:"rules"`
 }
 
 func LoadConfig(configFile string) (*Config, error) {
