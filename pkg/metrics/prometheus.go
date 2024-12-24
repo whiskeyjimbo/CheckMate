@@ -15,6 +15,15 @@ type PrometheusMetrics struct {
 	checkLatencyHistogram *prometheus.HistogramVec
 }
 
+func StartMetricsServer(logger *zap.SugaredLogger) (error){
+    http.Handle("/metrics", promhttp.Handler())
+    go func() {
+        if err := http.ListenAndServe(":9100", nil); err != nil {
+            logger.Fatalf("Failed to start Prometheus metrics server: %v", err)
+        }
+    }()
+}
+
 func NewPrometheusMetrics(logger *zap.SugaredLogger) *PrometheusMetrics {
 	// this probably wont be super accurate based off of polling, maybe i should switch to a counter
 	statusGauge := promauto.NewGaugeVec(

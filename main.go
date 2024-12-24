@@ -34,12 +34,10 @@ func main() {
 		}
 	}
 
-	http.Handle("/metrics", promhttp.Handler())
-	go func() {
-		if err := http.ListenAndServe(":9100", nil); err != nil {
-			logger.Fatalf("Failed to start Prometheus metrics server: %v", err)
-		}
-	}()
+	err = metrics.StartMetricsServer(logger)
+	if err != nil {
+		logger.Fatalf("Failed to start Prometheus metrics server: %v", err)
+	}
 
 	waitForShutdown(logger)
 }
