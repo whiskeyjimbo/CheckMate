@@ -4,7 +4,7 @@ A simple and extensible Go application for monitoring service availability and h
 
 ## Features
 
-* Checks TCP, HTTP, SMTP, and DNS protocols.
+* Checks TCP, HTTP, SMTP, and DNS (not sure if this one is correct) protocols.
 * Configurable check interval and target host/port/protocol.
 * Customizable notifications (STUB).
 * Stores check results in a database (STUB).
@@ -12,8 +12,9 @@ A simple and extensible Go application for monitoring service availability and h
 * modular design for easy extensibility ?.
 
 ## TODO
-- [ ] Add more protocols
+- [ ] Add more protocols 
 - [ ] Add notifications and support for notification rules
+- [ ] configurable notification thresholds (eg. dont spam)
 - [ ] Add database support
 - [X] multiple host support
 - [X] hosts with multiple protocols/ports
