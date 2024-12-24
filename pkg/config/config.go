@@ -26,7 +26,7 @@ type Config struct {
 	RawRules []rules.Rule `yaml:"rules"`
 }
 
-func LoadConfig(configFile string) (*Config, error) {
+func loadConfig(configFile string) (*Config, error) {
 	fileContent, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -44,6 +44,19 @@ func LoadConfig(configFile string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+func LoadConfiguration(args []string) (*Config, error){
+    configFile := "config.yaml"
+    if len(os.Args) > 1 {
+        configFile = os.Args[1]
+    }
+
+    config, err := loadConfig(configFile)
+    if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+    }
+    return config, nil
 }
 
 func normalizeConfig(c *CheckConfig) {

@@ -25,12 +25,7 @@ func main() {
 	defer zapL.Sync()
 	logger := zapL.Sugar()
 
-	configFile := "config.yaml"
-	if len(os.Args) > 1 {
-		configFile = os.Args[1]
-	}
-
-	config, err := config.LoadConfig(configFile)
+	config, err := config.LoadConfiguration(os.Args)
 	if err != nil {
 		logger.Fatalf("Failed to load config: %v", err)
 	}
