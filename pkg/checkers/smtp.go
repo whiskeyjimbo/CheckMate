@@ -5,15 +5,31 @@ import (
 	"time"
 )
 
-type SMTPChecker struct{}
+type SMTPChecker struct {
+	protocol Protocol
+}
 
-func (c SMTPChecker) Check(address string) (success bool, responseTime int64, err error) {
+func (c *SMTPChecker) Protocol() Protocol {
+	return c.protocol
+}
+
+func (c *SMTPChecker) Check(address string) CheckResult {
 	start := time.Now()
-	smtp, err := smtp.Dial(address)
-	elapsed := time.Since(start).Microseconds()
+	client, err := smtp.Dial(address)
+	elapsed := time.Since(start)
+
 	if err != nil {
-		return false, elapsed, err
+		return CheckResult{
+			Success:      false,
+			ResponseTime: elapsed,
+			Error:        err,
+		}
 	}
-	defer smtp.Close()
-	return true, elapsed, nil
+	defer client.Close()
+
+	return CheckResult{
+		Success:      true,
+		ResponseTime: elapsed,
+		Error:        nil,
+	}
 }

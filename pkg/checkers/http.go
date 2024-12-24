@@ -6,15 +6,35 @@ import (
 	"time"
 )
 
-type HTTPChecker struct{}
+type HTTPChecker struct {
+	protocol Protocol
+}
 
-func (c HTTPChecker) Check(address string) (success bool, responseTime int64, err error) {
+func (c *HTTPChecker) Protocol() Protocol {
+	return c.protocol
+}
+
+func (c *HTTPChecker) Check(address string) CheckResult {
 	start := time.Now()
-	resp, err := http.Get(fmt.Sprintf("http://%s", address))
-	elapsed := time.Since(start).Microseconds()
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	
+	resp, err := client.Get(fmt.Sprintf("http://%s", address))
+	elapsed := time.Since(start)
+
 	if err != nil {
-		return false, elapsed, err
+		return CheckResult{
+			Success:      false,
+			ResponseTime: elapsed,
+			Error:        err,
+		}
 	}
 	defer resp.Body.Close()
-	return resp.StatusCode == http.StatusOK, elapsed, nil
+
+	return CheckResult{
+		Success:      resp.StatusCode == http.StatusOK,
+		ResponseTime: elapsed,
+		Error:        nil,
+	}
 }

@@ -5,14 +5,30 @@ import (
 	"time"
 )
 
-type DNSChecker struct{}
+type DNSChecker struct {
+	protocol Protocol
+}
 
-func (c DNSChecker) Check(address string) (success bool, responseTime int64, err error) {
+func (c *DNSChecker) Protocol() Protocol {
+	return c.protocol
+}
+
+func (c *DNSChecker) Check(address string) CheckResult {
 	start := time.Now()
-	_, err = net.LookupHost(address)
-	elapsed := time.Since(start).Microseconds()
+	_, err := net.LookupHost(address)
+	elapsed := time.Since(start)
+
 	if err != nil {
-		return false, elapsed, err
+		return CheckResult{
+			Success:      false,
+			ResponseTime: elapsed,
+			Error:        err,
+		}
 	}
-	return true, elapsed, nil
+
+	return CheckResult{
+		Success:      true,
+		ResponseTime: elapsed,
+		Error:        nil,
+	}
 }

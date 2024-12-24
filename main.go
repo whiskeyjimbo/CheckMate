@@ -61,20 +61,20 @@ func monitorHost(
 
 	for {
 		checkStart := time.Now()
-		success, elapsed, err := checker.Check(address)
+		result := checker.Check(address)
 
-		logCheckResult(logger, host, checkConfig, success, err, time.Duration(elapsed)*time.Microsecond)
+		logCheckResult(logger, host, checkConfig, result.Success, result.Error, result.ResponseTime)
 
-		promMetricsEndpoint.Update(host, checkConfig.Port, checkConfig.Protocol, success, time.Duration(elapsed)*time.Microsecond)
+		promMetricsEndpoint.Update(host, checkConfig.Port, checkConfig.Protocol, result.Success, result.ResponseTime)
 
-		downtime = updateDowntime(downtime, interval, success)
+		downtime = updateDowntime(downtime, interval, result.Success)
 
 		for _, rule := range confRules {
 			if time.Since(lastRuleEval[rule.Name]) < time.Minute {
 				continue
 			}
 
-			triggered, err := rules.EvaluateRule(rule, downtime, time.Duration(elapsed)*time.Microsecond)
+			triggered, err := rules.EvaluateRule(rule, downtime, result.ResponseTime)
 			if err != nil {
 				logger.Errorf("Failed to evaluate rule %s: %v", rule.Name, err)
 				continue

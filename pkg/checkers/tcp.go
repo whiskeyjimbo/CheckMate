@@ -5,15 +5,31 @@ import (
 	"time"
 )
 
-type TCPChecker struct{}
+type TCPChecker struct {
+	protocol Protocol
+}
 
-func (c TCPChecker) Check(address string) (success bool, responseTime int64, err error) {
+func (c *TCPChecker) Protocol() Protocol {
+	return c.protocol
+}
+
+func (c *TCPChecker) Check(address string) CheckResult {
 	start := time.Now()
-	conn, err := net.Dial("tcp", address)
-	elapsed := time.Since(start).Microseconds()
+	conn, err := net.DialTimeout("tcp", address, 10*time.Second)
+	elapsed := time.Since(start)
+
 	if err != nil {
-		return false, elapsed, err
+		return CheckResult{
+			Success:      false,
+			ResponseTime: elapsed,
+			Error:        err,
+		}
 	}
 	defer conn.Close()
-	return true, elapsed, nil
+
+	return CheckResult{
+		Success:      true,
+		ResponseTime: elapsed,
+		Error:        nil,
+	}
 }
