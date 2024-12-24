@@ -17,13 +17,7 @@ import (
 )
 
 func main() {
-	zapL, err := zap.NewProduction()
-	if err != nil {
-		fmt.Printf("Failed to initialize logger: %v\n", err)
-		os.Exit(1)
-	}
-	defer zapL.Sync()
-	logger := zapL.Sugar()
+	logger := initLogger()
 
 	config, err := config.LoadConfiguration(os.Args)
 	if err != nil {
@@ -115,6 +109,16 @@ func monitorHost(
 
 		sleepUntilNextCheck(interval, time.Since(checkStart))
 	}
+}
+
+func initLogger() *zap.SugaredLogger {
+    zapL, err := zap.NewProduction()
+    if err != nil {
+        fmt.Printf("Failed to initialize logger: %v\n", err)
+        os.Exit(1)
+    }
+    defer zapL.Sync()
+    return zapL.Sugar()
 }
 
 func sleepUntilNextCheck(interval, elapsed time.Duration) {
