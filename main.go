@@ -12,8 +12,8 @@ import (
 	"github.com/whiskeyjimbo/CheckMate/pkg/config"
 	"github.com/whiskeyjimbo/CheckMate/pkg/metrics"
 	"github.com/whiskeyjimbo/CheckMate/pkg/rules"
-	"go.uber.org/zap"
 	_ "go.uber.org/automaxprocs"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -86,7 +86,7 @@ func monitorHost(
 
 			if triggered {
 				lastRuleEval[rule.Name] = time.Now()
-				logger.Warnf("Rule triggered: host: %s, port: %s, protocol: %s, rule: %s", 
+				logger.Warnf("Rule triggered: host: %s, port: %s, protocol: %s, rule: %s",
 					host, checkConfig.Port, checkConfig.Protocol, rule.Name)
 			}
 		}
@@ -96,50 +96,49 @@ func monitorHost(
 }
 
 func initLogger() *zap.SugaredLogger {
-    zapL, err := zap.NewProduction()
-    if err != nil {
-        fmt.Printf("Failed to initialize logger: %v\n", err)
-        os.Exit(1)
-    }
-    defer zapL.Sync()
-    return zapL.Sugar()
+	zapL, err := zap.NewProduction()
+	if err != nil {
+		fmt.Printf("Failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer zapL.Sync()
+	return zapL.Sugar()
 }
 
 func logCheckResult(logger *zap.SugaredLogger, host string, checkConfig config.CheckConfig, success bool, err error, elapsed time.Duration) {
-    l := logger.With(
-        "host", host,
-        "port", checkConfig.Port,
-        "protocol", checkConfig.Protocol,
-        "responseTime_us", elapsed,
-    )
+	l := logger.With(
+		"host", host,
+		"port", checkConfig.Port,
+		"protocol", checkConfig.Protocol,
+		"responseTime_us", elapsed,
+	)
 
-    if err != nil {
-        l.With("success", false).Warnf("Check failed: %v", err)
-    } else if success {
-        l.With("success", true).Info("Check succeeded")
-    } else {
-        l.With("success", false).Error("Check failed: Unknown")
-    }
+	if err != nil {
+		l.With("success", false).Warnf("Check failed: %v", err)
+	} else if success {
+		l.With("success", true).Info("Check succeeded")
+	} else {
+		l.With("success", false).Error("Check failed: Unknown")
+	}
 }
 
 func sleepUntilNextCheck(interval, elapsed time.Duration) {
-    sleepDuration := interval - elapsed
-    if sleepDuration > 0 {
-        time.Sleep(sleepDuration)
-    }
+	sleepDuration := interval - elapsed
+	if sleepDuration > 0 {
+		time.Sleep(sleepDuration)
+	}
 }
 
 func updateDowntime(currentDowntime, interval time.Duration, success bool) time.Duration {
-    if !success {
-        return currentDowntime + interval
-    }
-    return 0
+	if !success {
+		return currentDowntime + interval
+	}
+	return 0
 }
 
 func waitForShutdown(logger *zap.SugaredLogger) {
-    c := make(chan os.Signal, 1)
-    signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-    <-c
-    logger.Info("Received shutdown signal, exiting...")
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	<-c
+	logger.Info("Received shutdown signal, exiting...")
 }
-
