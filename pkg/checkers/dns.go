@@ -1,6 +1,7 @@
 package checkers
 
 import (
+	"context"
 	"net"
 	"time"
 )

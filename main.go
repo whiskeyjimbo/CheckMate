@@ -13,6 +13,7 @@ import (
 	"github.com/whiskeyjimbo/CheckMate/pkg/metrics"
 	"github.com/whiskeyjimbo/CheckMate/pkg/rules"
 	"go.uber.org/zap"
+	_ "go.uber.org/automaxprocs"
 )
 
 func main() {
