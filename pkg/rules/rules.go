@@ -21,6 +21,11 @@ var (
 	ErrNotBoolean         = errors.New("rule condition did not evaluate to a boolean")
 )
 
+type RuleEnvironment struct {
+	Downtime     int `expr:"downtime"`
+	ResponseTime int `expr:"responseTime"`
+}
+
 // Main function to evaluate a rule
 func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration) (bool, error) {
 	env := createExprEnv(downtime, responseTime)
@@ -49,10 +54,10 @@ func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration)
 	return result, nil
 }
 
-func createExprEnv(downtime, responseTime time.Duration) map[string]interface{} {
-	return map[string]interface{}{
-		"downtime":     timeDurationToSeconds(downtime),
-		"responseTime": timeDurationToSeconds(responseTime),
+func createExprEnv(downtime, responseTime time.Duration) RuleEnvironment {
+	return RuleEnvironment{
+		Downtime:     timeDurationToSeconds(downtime),
+		ResponseTime: timeDurationToSeconds(responseTime),
 	}
 }
 
