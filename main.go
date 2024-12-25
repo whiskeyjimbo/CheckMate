@@ -111,14 +111,16 @@ func logCheckResult(logger *zap.SugaredLogger, host string, checkConfig config.C
 		"port", checkConfig.Port,
 		"protocol", checkConfig.Protocol,
 		"responseTime_us", elapsed,
+		"success", success,
 	)
 
-	if err != nil {
-		l.With("success", false).Warnf("Check failed: %v", err)
-	} else if success {
-		l.With("success", true).Info("Check succeeded")
-	} else {
-		l.With("success", false).Error("Check failed: Unknown")
+	switch {
+	case err != nil:
+		l.Warnf("Check failed: %v", err)
+	case success:
+		l.Info("Check succeeded")
+	default:
+		l.Error("Check failed: Unknown")
 	}
 }
 
