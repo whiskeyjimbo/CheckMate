@@ -6,12 +6,20 @@ import (
 	"time"
 
 	"github.com/expr-lang/expr"
+	"errors"
 )
 
 type Rule struct {
 	Name      string `yaml:"name"`
 	Condition string `yaml:"condition"`
 }
+
+var (
+	ErrConditionProcessing = errors.New("failed to process condition")
+	ErrConditionCompile    = errors.New("failed to compile rule condition")
+	ErrConditionEval      = errors.New("failed to evaluate rule condition")
+	ErrNotBoolean         = errors.New("rule condition did not evaluate to a boolean")
+)
 
 // Main function to evaluate a rule
 func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration) (bool, error) {
@@ -20,22 +28,22 @@ func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration)
 	if err != nil {
 		processedCondition, err := processCondition(rule.Condition, downtime, responseTime)
 		if err != nil {
-			return false, fmt.Errorf("failed to process condition: %w", err)
+			return false, fmt.Errorf("%w: %v", ErrConditionProcessing, err)
 		}
 		program, err = expr.Compile(processedCondition, expr.Env(env))
 		if err != nil {
-			return false, fmt.Errorf("failed to compile rule condition: %w", err)
+			return false, fmt.Errorf("%w: %v", ErrConditionCompile, err)
 		}
 	}
 
 	output, err := expr.Run(program, env)
 	if err != nil {
-		return false, fmt.Errorf("failed to evaluate rule condition: %w", err)
+		return false, fmt.Errorf("%w: %v", ErrConditionEval, err)
 	}
 
 	result, ok := output.(bool)
 	if !ok {
-		return false, fmt.Errorf("rule condition did not evaluate to a boolean")
+		return false, ErrNotBoolean
 	}
 
 	return result, nil
