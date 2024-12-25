@@ -14,11 +14,7 @@ type Rule struct {
 }
 
 func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration) (bool, error) {
-	// prob convert the parsedduration to seconds and any rule to seconds to do the comparison
-	env := map[string]interface{}{
-		"downtime":     timeDurationToSeconds(downtime),
-		"responseTime": timeDurationToSeconds(responseTime),
-	}
+	env := createExprEnv(downtime, responseTime)
 	program, err := expr.Compile(rule.Condition, expr.Env(env))
 	if err != nil {
 		condition := strings.ReplaceAll(rule.Condition, "${downtime}", fmt.Sprintf("%d", timeDurationToSeconds(downtime)))
@@ -48,6 +44,13 @@ func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration)
 	}
 
 	return result, nil
+}
+
+func createExprEnv(downtime, responseTime time.Duration) map[string]interface{} {
+	return map[string]interface{}{
+		"downtime":     timeDurationToSeconds(downtime),
+		"responseTime": timeDurationToSeconds(responseTime),
+	}
 }
 
 func timeDurationToSeconds(d time.Duration) int {
