@@ -26,17 +26,18 @@ func main() {
 
 	metrics.StartMetricsServer(logger)
 
-	confRules := config.RawRules
-
 	promMetricsEndpoint := metrics.NewPrometheusMetrics(logger)
-
-	for _, hostConfig := range config.Hosts {
-		for _, checkConfig := range hostConfig.Checks {
-			go monitorHost(logger, hostConfig.Host, checkConfig, promMetricsEndpoint, confRules)
-		}
-	}
+	startMonitoring(logger, config, promMetricsEndpoint)
 
 	waitForShutdown(logger)
+}
+
+func startMonitoring(logger *zap.SugaredLogger, config *config.Config, metrics *metrics.PrometheusMetrics) {
+	for _, hostConfig := range config.Hosts {
+		for _, checkConfig := range hostConfig.Checks {
+			go monitorHost(logger, hostConfig.Host, checkConfig, metrics, config.RawRules)
+		}
+	}
 }
 
 func monitorHost(
