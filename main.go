@@ -29,10 +29,8 @@ func main() {
 
 	metrics.StartMetricsServer(logger)
 
-	promMetricsEndpoint := metrics.NewPrometheusMetrics(logger)
-
 	var wg sync.WaitGroup
-	startMonitoring(ctx, &wg, logger, config, promMetricsEndpoint)
+	startMonitoring(ctx, &wg, logger, config, metrics.NewPrometheusMetrics(logger))
 
 	waitForShutdown(logger, cancel, &wg)
 }
@@ -49,6 +47,7 @@ func startMonitoring(ctx context.Context, wg *sync.WaitGroup, logger *zap.Sugare
 	}
 }
 
+// TODO: getting pretty large, need to break up
 func monitorHost(
 	ctx context.Context,
 	logger *zap.SugaredLogger,
