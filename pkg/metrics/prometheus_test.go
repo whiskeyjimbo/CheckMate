@@ -29,7 +29,7 @@ func TestPrometheusMetrics_Update(t *testing.T) {
 		protocol string
 		success  bool
 		elapsed  time.Duration
-		want     float64 // expected status value
+		want     float64
 	}{
 		{
 			name:     "successful check",
@@ -60,15 +60,12 @@ func TestPrometheusMetrics_Update(t *testing.T) {
 
 			metrics.Update(tt.host, tt.port, tt.protocol, tt.success, tt.elapsed)
 
-			// Verify status gauge
 			statusGauge := metrics.checkStatusGauge.WithLabelValues(tt.host, tt.port, tt.protocol)
 			assert.Equal(t, tt.want, testutil.ToFloat64(statusGauge))
 
-			// Verify latency gauge
 			latencyGauge := metrics.checkLatencyGauge.WithLabelValues(tt.host, tt.port, tt.protocol)
 			assert.Equal(t, float64(tt.elapsed.Milliseconds()), testutil.ToFloat64(latencyGauge))
 
-			// Verify histogram (we can only verify that it was recorded)
 			histogram, err := metrics.checkLatencyHistogram.GetMetricWithLabelValues(tt.host, tt.port, tt.protocol)
 			assert.NoError(t, err)
 			assert.NotNil(t, histogram)
@@ -78,13 +75,11 @@ func TestPrometheusMetrics_Update(t *testing.T) {
 
 func TestStartMetricsServer(t *testing.T) {
 	logger := zap.NewNop().Sugar()
-	
-	// Start the metrics server
+
 	StartMetricsServer(logger)
 
-	// Make a request to the metrics endpoint to ensure it's working
 	resp, err := http.Get("http://localhost:9100/metrics")
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	resp.Body.Close()
-} 
+}

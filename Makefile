@@ -42,12 +42,15 @@ deps:
 	$(GOMOD) download
 	$(GOMOD) tidy
 
-docker-build:
-	docker build -t $(DOCKER_IMAGE):$(VERSION) .
-	docker tag $(DOCKER_IMAGE):$(VERSION) $(DOCKER_IMAGE):latest
+docker-build-local:
+	KO_DOCKER_REPO=ko.local ko build .
+	# docker build -t $(DOCKER_IMAGE):$(VERSION) .
+	# docker tag $(DOCKER_IMAGE):$(VERSION) $(DOCKER_IMAGE):latest
 
 docker-run:
-	docker run -p 9100:9100 $(DOCKER_IMAGE):$(VERSION)
+    # need to figure out sha for ko
+	docker run -p 9100:9100 --rm ko.local/$(DOCKER_IMAGE)-$(SHA):latest
+	# docker run -p 9100:9100 $(DOCKER_IMAGE):$(VERSION)
 
 docker-push:
 	docker push $(DOCKER_IMAGE):$(VERSION)
@@ -65,7 +68,7 @@ help:
 	@echo "  lint         : Run linter"
 	@echo "  deps         : Download dependencies"
 	@echo "  dev          : Setup development environment"
-	@echo "  docker-build : Build Docker image"
+	@echo "  docker-build-local : Build Docker image"
 	@echo "  docker-run   : Run Docker container"
 	@echo "  docker-push  : Push Docker image"
 	@echo "  help         : Show this help message" 

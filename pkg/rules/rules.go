@@ -34,7 +34,7 @@ func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration)
 	if err != nil {
 		processedCondition, procErr := processCondition(rule.Condition, downtime, responseTime)
 		if procErr != nil {
-			return false, procErr // No need to wrap as processCondition adds context
+			return false, procErr
 		}
 
 		program, err = expr.Compile(processedCondition, expr.Env(env))

@@ -36,6 +36,7 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 - Go
 - Git
 - Make (optional, for using Makefile commands)
+- Ko (optional, for building a docker image)
 
 ### Quick Start
 

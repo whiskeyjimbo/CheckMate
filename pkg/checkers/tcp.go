@@ -16,12 +16,11 @@ func (c *TCPChecker) Protocol() Protocol {
 
 func (c *TCPChecker) Check(ctx context.Context, address string) CheckResult {
 	start := time.Now()
-	
-	// Create a dialer with context support
+
 	dialer := net.Dialer{
 		Timeout: 10 * time.Second,
 	}
-	
+
 	conn, err := dialer.DialContext(ctx, "tcp", address)
 	elapsed := time.Since(start)
 
