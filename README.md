@@ -16,13 +16,15 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 - Rule-based monitoring with custom conditions (WIP)
 - Structured logging with Zap
 - Concurrent monitoring of multiple hosts and services
+- Context-aware checks with timeouts (WIP)
 
 ### Metrics & Monitoring
 - Service availability status
 - Response time measurements
-- Custom rule evaluation (WIP)
+- Rule-based alerting with customizable conditions
 - Prometheus-compatible metrics endpoint
-- Downtime tracking (WIP)
+- downtime tracking
+- Latency histograms and gauges
 
 ### Technical Features
 - YAML-based configuration
@@ -33,6 +35,7 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 ### Prerequisites
 - Go
 - Git
+- Make (optional, for using Makefile commands)
 
 ### Quick Start
 
@@ -42,7 +45,12 @@ git clone https://github.com/whiskeyjimbo/CheckMate.git
 cd CheckMate
 ```
 
-2. Build the application:
+2. Build using Make:
+```bash
+make build
+```
+
+Or build directly with Go:
 ```bash
 go build
 ```
@@ -80,49 +88,47 @@ rules:
 #### Rule Configuration
 - `name`: Rule identifier
 - `condition`: Expression using variables:
-  - `responseTime`: Service response time
-  - `downtime`: Accumulated downtime
+  - `responseTime`: Service response time in seconds
+  - `downtime`: Accumulated downtime in seconds
 
 ## Metrics
 
 CheckMate exposes Prometheus metrics at `:9100/metrics` including:
-- `check_success`: Service availability (1 = up, 0 = down)
-- `check_latency_milliseconds`: Response time gauge
-- `check_latency_milliseconds_histogram`: Response time distribution
+- `checkmate_check_success`: Service availability (1 = up, 0 = down)
+- `checkmate_check_latency_milliseconds`: Response time gauge
+- `checkmate_check_latency_milliseconds_histogram`: Response time distribution
 
-## Extending CheckMate
+Labels included with metrics:
+- `host`: Target hostname
+- `port`: Service port
+- `protocol`: Check protocol
+
+## Development
+
+### Available Make Commands
+```bash
+make dev          # Setup development environment
+make lint         # Run linter
+make test         # Run tests
+make coverage     # Generate test coverage report
+make docker-build # Build Docker image
+make help         # Show all available commands
+```
 
 ### Adding New Protocols
 
 1. Create a new checker in `pkg/checkers/`:
 ```go
-type NewProtocolChecker struct{}
+type NewProtocolChecker struct {
+    protocol Protocol
+}
 
-func (c NewProtocolChecker) Check(address string) (success bool, responseTime int64, err error) {
+func (c *NewProtocolChecker) Check(ctx context.Context, address string) CheckResult {
     // Implement protocol check
 }
 ```
 
-2. Register in `pkg/checkers/checker.go`:
-```go
-func NewChecker(protocol string) (Checker, error) {
-    switch protocol {
-    case "NEWPROTOCOL":
-        return &NewProtocolChecker{}, nil
-    // ...
-    }
-}
-```
-
-### Adding Database Support
-
-Implement the Database interface in `pkg/database/`:
-```go
-type Database interface {
-    InsertCheck(host, port, protocol, status string, elapsed int64) error
-    Close() error
-}
-```
+2. Register in `pkg/checkers/checker.go`
 
 ## Contributing
 
@@ -134,12 +140,13 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ## Roadmap
 
-- [ ] Additional protocol support
+- [ ] Additional protocol support (HTTPS, TLS verification)
 - [ ] Notification system integration
 - [ ] Configurable notification thresholds
 - [ ] database support
 - [x] Multiple host monitoring
 - [x] Multi-protocol per host
 - [ ] Service tagging system
-- [ ] Docker container 
+- [ ] Docker container
+- [ ] Kubernetes readiness/liveness probe support
 - [ ] Web UI for monitoring (MAYBE) 
