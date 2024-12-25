@@ -21,7 +21,7 @@ func main() {
 
 	config, err := config.LoadConfiguration(os.Args)
 	if err != nil {
-		logger.Fatalf("Failed to load config: %v", err)
+		logger.Fatal(err)
 	}
 
 	metrics.StartMetricsServer(logger)
@@ -48,14 +48,14 @@ func monitorHost(
 ) {
 	interval, err := time.ParseDuration(checkConfig.Interval)
 	if err != nil {
-		logger.Fatalf("Invalid interval %s: %v", checkConfig.Interval, err)
+		logger.Fatal(err)
 	}
 
 	address := fmt.Sprintf("%s:%s", host, checkConfig.Port)
 
 	checker, err := checkers.NewChecker(checkConfig.Protocol)
 	if err != nil {
-		logger.Fatalf("Unsupported protocol %s", checkConfig.Protocol)
+		logger.Fatal(err)
 	}
 
 	var downtime time.Duration
@@ -80,7 +80,7 @@ func monitorHost(
 
 			triggered, err := rules.EvaluateRule(rule, downtime, result.ResponseTime)
 			if err != nil {
-				logger.Errorf("Failed to evaluate rule %s: %v", rule.Name, err)
+				logger.Error(err)
 				continue
 			}
 
@@ -116,11 +116,11 @@ func logCheckResult(logger *zap.SugaredLogger, host string, checkConfig config.C
 
 	switch {
 	case err != nil:
-		l.Warnf("Check failed: %v", err)
+		l.Warn(err)
 	case success:
 		l.Info("Check succeeded")
 	default:
-		l.Error("Check failed: Unknown")
+		l.Error("Unknown failure")
 	}
 }
 
