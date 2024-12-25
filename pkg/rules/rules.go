@@ -16,13 +16,13 @@ type Rule struct {
 func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration) (bool, error) {
 	// prob convert the parsedduration to seconds and any rule to seconds to do the comparison
 	env := map[string]interface{}{
-		"downtime":     timedurationtoseconds(downtime),
-		"responseTime": timedurationtoseconds(responseTime),
+		"downtime":     timeDurationToSeconds(downtime),
+		"responseTime": timeDurationToSeconds(responseTime),
 	}
 	program, err := expr.Compile(rule.Condition, expr.Env(env))
 	if err != nil {
-		condition := strings.ReplaceAll(rule.Condition, "${downtime}", fmt.Sprintf("%d", timedurationtoseconds(downtime)))
-		condition = strings.ReplaceAll(condition, "${responseTime}", fmt.Sprintf("%d", timedurationtoseconds(responseTime)))
+		condition := strings.ReplaceAll(rule.Condition, "${downtime}", fmt.Sprintf("%d", timeDurationToSeconds(downtime)))
+		condition = strings.ReplaceAll(condition, "${responseTime}", fmt.Sprintf("%d", timeDurationToSeconds(responseTime)))
 		words := strings.Split(condition, " ")
 		for i, word := range words {
 			dur, err := time.ParseDuration(word)
@@ -50,6 +50,6 @@ func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration)
 	return result, nil
 }
 
-func timedurationtoseconds(d time.Duration) int {
+func timeDurationToSeconds(d time.Duration) int {
 	return int(d.Seconds())
 }
