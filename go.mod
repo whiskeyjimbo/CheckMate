@@ -6,6 +6,7 @@ require (
 	github.com/expr-lang/expr v1.16.9
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/stretchr/testify v1.10.0
+	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/zap v1.27.0
 )
 
