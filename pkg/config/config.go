@@ -22,9 +22,14 @@ type HostConfig struct {
 	Checks []CheckConfig `yaml:"checks"`
 }
 
+type NotificationConfig struct {
+	Type string `yaml:"type"`
+}
+
 type Config struct {
-	Hosts    []HostConfig `yaml:"hosts"`
-	RawRules []rules.Rule `yaml:"rules"`
+	Hosts         []HostConfig         `yaml:"hosts"`
+	RawRules      []rules.Rule         `yaml:"rules"`
+	Notifications []NotificationConfig `yaml:"notifications"`
 }
 
 func loadConfig(configFile string) (*Config, error) {
