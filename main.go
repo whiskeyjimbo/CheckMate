@@ -13,6 +13,7 @@ import (
 	"github.com/whiskeyjimbo/CheckMate/pkg/config"
 	"github.com/whiskeyjimbo/CheckMate/pkg/health"
 	"github.com/whiskeyjimbo/CheckMate/pkg/metrics"
+	"github.com/whiskeyjimbo/CheckMate/pkg/notifications"
 	"github.com/whiskeyjimbo/CheckMate/pkg/rules"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
@@ -30,23 +31,35 @@ func main() {
 		logger.Fatal(err)
 	}
 
+	notifier := notifications.NewLogNotifier(logger)
+	if err := notifier.Initialize(ctx); err != nil {
+		logger.Fatal(err)
+	}
+
 	metrics.StartMetricsServer(logger)
 
 	health.SetReady(true)
 
 	var wg sync.WaitGroup
-	startMonitoring(ctx, &wg, logger, config, metrics.NewPrometheusMetrics(logger))
+	startMonitoring(ctx, &wg, logger, config, metrics.NewPrometheusMetrics(logger), notifier)
 
 	waitForShutdown(logger, cancel, &wg)
 }
 
-func startMonitoring(ctx context.Context, wg *sync.WaitGroup, logger *zap.SugaredLogger, cfg *config.Config, metrics *metrics.PrometheusMetrics) {
+func startMonitoring(
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	logger *zap.SugaredLogger,
+	cfg *config.Config,
+	metrics *metrics.PrometheusMetrics,
+	notifier notifications.Notifier,
+) {
 	for _, hostConfig := range cfg.Hosts {
 		for _, checkConfig := range hostConfig.Checks {
 			wg.Add(1)
 			go func(host string, check config.CheckConfig, tags []string) {
 				defer wg.Done()
-				monitorHost(ctx, logger, host, check, metrics, cfg.RawRules, tags)
+				monitorHost(ctx, logger, host, check, metrics, cfg.RawRules, tags, notifier)
 			}(hostConfig.Host, checkConfig, hostConfig.Tags)
 		}
 	}
@@ -61,6 +74,7 @@ func monitorHost(
 	promMetricsEndpoint *metrics.PrometheusMetrics,
 	confRules []rules.Rule,
 	hostTags []string,
+	notifier notifications.Notifier,
 ) {
 	interval, err := time.ParseDuration(checkConfig.Interval)
 	if err != nil {
@@ -117,6 +131,14 @@ func monitorHost(
 						"error", ruleResult.Error,
 					)
 				} else if ruleResult.Satisfied {
+					notifier.SendNotification(ctx, notifications.Notification{
+						Message:  fmt.Sprintf("Rule condition met: %s", rule.Name),
+						Level:    notifications.WarningLevel,
+						Tags:     hostTags,
+						Host:     host,
+						Port:     checkConfig.Port,
+						Protocol: string(checkConfig.Protocol),
+					})
 					logger.Warnw("Rule condition met",
 						"rule", rule.Name,
 						"ruleTags", rule.Tags,
