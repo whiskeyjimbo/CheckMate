@@ -13,9 +13,8 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 - Multi-protocol support (TCP, HTTP, SMTP, DNS(*))
 - Configurable check intervals per service
 - Prometheus metrics integration
-- Rule-based monitoring with custom conditions (WIP)
-- Concurrent monitoring of multiple hosts and services
-- Context-aware checks with timeouts (WIP)
+- Rule-based monitoring with custom conditions
+- Flexible Notification system with multiple providers
 
 ### Metrics & Monitoring
 - Service availability status
@@ -30,7 +29,6 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 - Modular architecture for easy extension using interfaces
 
 ### Health Checks
-
 CheckMate provides Kubernetes-compatible health check endpoints:
 
 - `/health/live` - Liveness probe
@@ -107,6 +105,11 @@ rules:
   - name: extended_downtime
     condition: "downtime > 5m"
     tags: ["external"]           # Rule tags
+notifications:
+  - type: "log"    # Uses zap 
+  # Future supported types will include:
+  # - type: "slack"
+  # - type: "email"
 ```
 
 ### Configuration Options
@@ -125,6 +128,9 @@ rules:
   - `responseTime`: Service response time in seconds
   - `downtime`: Accumulated downtime in seconds
 - `tags`: List of tags to target specific hosts (optional)
+
+#### Notifications Configuration
+- `type`: Notification type (currently only `log` is supported)
 
 ### Tag System
 
