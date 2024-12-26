@@ -63,6 +63,7 @@ Create a `config.yaml` file with your service definitions and monitoring rules:
 ```yaml
 hosts:
   - host: example.com
+    tags: ["prod", "external"]    # Host tags
     checks:
       - port: "80"
         protocol: HTTP
@@ -71,16 +72,19 @@ hosts:
         protocol: TCP
         interval: 1m
 rules:
-  - name: high_latency
+  - name: high_latency_prod
     condition: "responseTime > 5s"
+    tags: ["prod"]               # Rule tags
   - name: extended_downtime
     condition: "downtime > 5m"
+    tags: ["external"]           # Rule tags
 ```
 
 ### Configuration Options
 
 #### Host Configuration
 - `host`: Target hostname or IP address
+- `tags`: List of tags for grouping and rule targeting (optional)
 - `checks`: List of service checks
   - `port`: Service port
   - `protocol`: Check protocol (HTTP, TCP, SMTP, DNS)
@@ -91,6 +95,49 @@ rules:
 - `condition`: Expression using variables:
   - `responseTime`: Service response time in seconds
   - `downtime`: Accumulated downtime in seconds
+- `tags`: List of tags to target specific hosts (optional)
+
+### Tag System
+
+CheckMate uses tags to create flexible associations between hosts and rules:
+
+- **Host Tags**: Group hosts by environment, purpose, or any custom category
+- **Rule Tags**: Target rules to specific groups of hosts
+- **Tag Matching**:
+  - Rules apply to hosts when they share at least one matching tag
+  - Rules with no tags apply to all hosts
+  - Hosts with no tags only match rules with no tags
+
+Example:
+```yaml
+hosts:
+  - host: "prod-web"
+    tags: ["prod", "web"]
+    checks:
+      - port: "80"
+        protocol: HTTP
+        interval: 5s
+
+  - host: "dev-web"
+    tags: ["dev", "web"]
+    checks:
+      - port: "80"
+        protocol: HTTP
+        interval: 30s
+
+rules:
+  - name: "prod_latency"
+    condition: "responseTime > 2s"
+    tags: ["prod"]           # Only applies to prod hosts
+  
+  - name: "web_downtime"
+    condition: "downtime > 30s"
+    tags: ["web"]           # Applies to all web hosts
+  
+  - name: "dev_alert"
+    condition: "downtime > 5m"
+    tags: ["dev"]           # Only applies to dev hosts
+```
 
 ## Metrics
 
@@ -147,7 +194,7 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 - [ ] database support
 - [x] Multiple host monitoring
 - [x] Multi-protocol per host
-- [ ] Service tagging system
+- [x] Service tagging system
 - [ ] Docker container
 - [ ] Kubernetes readiness/liveness probe support
 - [ ] Web UI for monitoring (MAYBE) 
