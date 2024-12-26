@@ -31,15 +31,17 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	var notifier notifications.Notifier
+	var notifiers []notifications.Notifier
 	for _, n := range config.Notifications {
-		if n.Type == string(notifications.LogNotification) {
-			notifier = notifications.NewLogNotifier(logger)
-			if err := notifier.Initialize(ctx); err != nil {
-				logger.Fatal(err)
-			}
-			break
+		notifier, err := notifications.NewNotifier(n.Type, logger)
+		if err != nil {
+			logger.Fatal(err)
 		}
+		if err := notifier.Initialize(ctx); err != nil {
+			logger.Fatal(err)
+		}
+		defer notifier.Close()
+		notifiers = append(notifiers, notifier)
 	}
 
 	metrics.StartMetricsServer(logger)
@@ -47,7 +49,7 @@ func main() {
 	health.SetReady(true)
 
 	var wg sync.WaitGroup
-	startMonitoring(ctx, &wg, logger, config, metrics.NewPrometheusMetrics(logger), notifier)
+	startMonitoring(ctx, &wg, logger, config, metrics.NewPrometheusMetrics(logger), notifiers)
 
 	waitForShutdown(logger, cancel, &wg)
 }
@@ -58,14 +60,14 @@ func startMonitoring(
 	logger *zap.SugaredLogger,
 	cfg *config.Config,
 	metrics *metrics.PrometheusMetrics,
-	notifier notifications.Notifier,
+	notifiers []notifications.Notifier,
 ) {
 	for _, hostConfig := range cfg.Hosts {
 		for _, checkConfig := range hostConfig.Checks {
 			wg.Add(1)
 			go func(host string, check config.CheckConfig, tags []string) {
 				defer wg.Done()
-				monitorHost(ctx, logger, host, check, metrics, cfg.RawRules, tags, notifier)
+				monitorHost(ctx, logger, host, check, metrics, cfg.RawRules, tags, notifiers)
 			}(hostConfig.Host, checkConfig, hostConfig.Tags)
 		}
 	}
@@ -80,7 +82,7 @@ func monitorHost(
 	promMetricsEndpoint *metrics.PrometheusMetrics,
 	confRules []rules.Rule,
 	hostTags []string,
-	notifier notifications.Notifier,
+	notifiers []notifications.Notifier,
 ) {
 	interval, err := time.ParseDuration(checkConfig.Interval)
 	if err != nil {
@@ -137,7 +139,7 @@ func monitorHost(
 						"error", ruleResult.Error,
 					)
 				} else if ruleResult.Satisfied {
-					if notifier != nil {
+					for _, notifier := range notifiers {
 						notifier.SendNotification(ctx, notifications.Notification{
 							Message:  fmt.Sprintf("Rule condition met: %s", rule.Name),
 							Level:    notifications.WarningLevel,

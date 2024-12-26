@@ -1,6 +1,11 @@
 package notifications
 
-import "context"
+import (
+	"context"
+	"fmt"
+
+	"go.uber.org/zap"
+)
 
 type NotificationType string
 
@@ -32,4 +37,22 @@ type Notifier interface {
 	Type() NotificationType
 	Initialize(ctx context.Context) error
 	Close() error
+}
+
+func NewNotifier(notifierType string, opts ...interface{}) (Notifier, error) {
+	switch NotificationType(notifierType) {
+	case LogNotification:
+		if len(opts) > 0 {
+			if logger, ok := opts[0].(*zap.SugaredLogger); ok {
+				return NewLogNotifier(logger), nil
+			}
+		}
+		return nil, fmt.Errorf("log notifier requires a logger")
+	// case SlackNotification:
+	//     return NewSlackNotifier(opts...), nil
+	// case EmailNotification:
+	//     return NewEmailNotifier(opts...), nil
+	default:
+		return nil, fmt.Errorf("unsupported notification type: %s", notifierType)
+	}
 }
