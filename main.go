@@ -31,9 +31,15 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	notifier := notifications.NewLogNotifier(logger)
-	if err := notifier.Initialize(ctx); err != nil {
-		logger.Fatal(err)
+	var notifier notifications.Notifier
+	for _, n := range config.Notifications {
+		if n.Type == string(notifications.LogNotification) {
+			notifier = notifications.NewLogNotifier(logger)
+			if err := notifier.Initialize(ctx); err != nil {
+				logger.Fatal(err)
+			}
+			break
+		}
 	}
 
 	metrics.StartMetricsServer(logger)
@@ -131,15 +137,18 @@ func monitorHost(
 						"error", ruleResult.Error,
 					)
 				} else if ruleResult.Satisfied {
-					notifier.SendNotification(ctx, notifications.Notification{
-						Message:  fmt.Sprintf("Rule condition met: %s", rule.Name),
-						Level:    notifications.WarningLevel,
-						Tags:     hostTags,
-						Host:     host,
-						Port:     checkConfig.Port,
-						Protocol: string(checkConfig.Protocol),
-					})
+					if notifier != nil {
+						notifier.SendNotification(ctx, notifications.Notification{
+							Message:  fmt.Sprintf("Rule condition met: %s", rule.Name),
+							Level:    notifications.WarningLevel,
+							Tags:     hostTags,
+							Host:     host,
+							Port:     checkConfig.Port,
+							Protocol: string(checkConfig.Protocol),
+						})
+					}
 				}
+				lastRuleEval[rule.Name] = time.Now()
 			}
 
 			sleepUntilNextCheck(interval, time.Since(checkStart))
