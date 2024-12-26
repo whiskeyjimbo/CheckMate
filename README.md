@@ -278,12 +278,12 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 ## Roadmap
 
 - [ ] Additional protocol support (HTTPS, TLS verification)
-- [ ] Notification system integration
+- [ ] Notification system integration (Slack, Email, etc.)
 - [ ] Configurable notification thresholds
 - [ ] database support
+- [ ] Docker container
+- [ ] Web UI for monitoring (MAYBE) 
+- [X] Kubernetes readiness/liveness probe support
 - [x] Multiple host monitoring
 - [x] Multi-protocol per host
 - [x] Service tagging system
-- [ ] Docker container
-- [ ] Kubernetes readiness/liveness probe support
-- [ ] Web UI for monitoring (MAYBE) 
