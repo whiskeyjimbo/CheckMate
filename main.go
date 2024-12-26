@@ -27,6 +27,8 @@ func main() {
 	http.HandleFunc("/health/live", health.LivenessHandler)
 	http.HandleFunc("/health/ready", health.ReadinessHandler)
 
+	health.SetReady(false)
+
 	go func() {
 		if err := http.ListenAndServe(":9101", nil); err != nil {
 			logger.Fatalf("Failed to start server: %v", err)
@@ -39,6 +41,8 @@ func main() {
 	}
 
 	metrics.StartMetricsServer(logger)
+
+	health.SetReady(true)
 
 	var wg sync.WaitGroup
 	startMonitoring(ctx, &wg, logger, config, metrics.NewPrometheusMetrics(logger))
