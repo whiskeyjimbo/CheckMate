@@ -29,6 +29,36 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 - YAML-based configuration
 - Modular architecture for easy extension using interfaces
 
+### Health Checks
+
+CheckMate provides Kubernetes-compatible health check endpoints:
+
+- `/health/live` - Liveness probe
+  - Returns 200 OK when the service is running
+  - not sure how useful this is right now in its current state.
+
+- `/health/ready` - Readiness probe
+  - Returns 200 OK when the service is ready to receive traffic
+  - Returns 503 Service Unavailable during initialization
+
+All health check endpoints are served on port 9100 alongside the metrics endpoint.
+
+Example Kubernetes probe configuration:
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: 9100
+  initialDelaySeconds: 5
+  periodSeconds: 10
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 9100
+  initialDelaySeconds: 5
+  periodSeconds: 10
+```
+
 ## Installation
 
 ### Prerequisites
