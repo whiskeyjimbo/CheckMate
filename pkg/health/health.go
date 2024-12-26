@@ -20,3 +20,13 @@ func LivenessHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
+
+func ReadinessHandler(w http.ResponseWriter, r *http.Request) {
+	response := Response{
+		Status:    "READY",
+		Timestamp: time.Now(),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}

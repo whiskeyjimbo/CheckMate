@@ -25,6 +25,7 @@ func main() {
 	defer cancel()
 
 	http.HandleFunc("/health/live", health.LivenessHandler)
+	http.HandleFunc("/health/ready", health.ReadinessHandler)
 
 	go func() {
 		if err := http.ListenAndServe(":9101", nil); err != nil {
