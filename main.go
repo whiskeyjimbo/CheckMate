@@ -81,9 +81,16 @@ func monitorHost(
 			result := checker.Check(checkCtx, address)
 			checkCancel()
 
-			logCheckResult(logger, host, checkConfig, result.Success, result.Error, result.ResponseTime)
+			logCheckResult(logger, host, checkConfig, result.Success, result.Error, result.ResponseTime, hostTags)
 
-			promMetricsEndpoint.Update(host, checkConfig.Port, checkConfig.Protocol, result.Success, result.ResponseTime)
+			promMetricsEndpoint.Update(
+				host,
+				checkConfig.Port,
+				string(checkConfig.Protocol),
+				hostTags,
+				result.Success,
+				result.ResponseTime,
+			)
 
 			downtime = updateDowntime(downtime, interval, result.Success)
 
@@ -98,14 +105,21 @@ func monitorHost(
 
 				ruleResult := rules.EvaluateRule(rule, downtime, result.ResponseTime)
 				if ruleResult.Error != nil {
-					logger.Error(ruleResult.Error)
-					continue
-				}
-
-				if ruleResult.Satisfied {
-					lastRuleEval[rule.Name] = time.Now()
-					logger.Warnf("Rule triggered: host: %s, port: %s, protocol: %s, rule: %s",
-						host, checkConfig.Port, checkConfig.Protocol, rule.Name)
+					logger.Errorw("Rule evaluation failed",
+						"rule", rule.Name,
+						"ruleTags", rule.Tags,
+						"hostTags", hostTags,
+						"error", ruleResult.Error,
+					)
+				} else if ruleResult.Satisfied {
+					logger.Warnw("Rule condition met",
+						"rule", rule.Name,
+						"ruleTags", rule.Tags,
+						"hostTags", hostTags,
+						"condition", rule.Condition,
+						"downtime", downtime,
+						"responseTime", result.ResponseTime,
+					)
 				}
 			}
 
@@ -124,13 +138,14 @@ func initLogger() *zap.SugaredLogger {
 	return zapL.Sugar()
 }
 
-func logCheckResult(logger *zap.SugaredLogger, host string, checkConfig config.CheckConfig, success bool, err error, elapsed time.Duration) {
+func logCheckResult(logger *zap.SugaredLogger, host string, checkConfig config.CheckConfig, success bool, err error, elapsed time.Duration, hostTags []string) {
 	l := logger.With(
 		"host", host,
 		"port", checkConfig.Port,
 		"protocol", checkConfig.Protocol,
 		"responseTime_us", elapsed,
 		"success", success,
+		"tags", hostTags,
 	)
 
 	switch {
