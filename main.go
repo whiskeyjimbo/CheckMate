@@ -39,10 +39,10 @@ func startMonitoring(ctx context.Context, wg *sync.WaitGroup, logger *zap.Sugare
 	for _, hostConfig := range cfg.Hosts {
 		for _, checkConfig := range hostConfig.Checks {
 			wg.Add(1)
-			go func(host string, check config.CheckConfig) {
+			go func(host string, check config.CheckConfig, tags []string) {
 				defer wg.Done()
-				monitorHost(ctx, logger, host, check, metrics, cfg.RawRules)
-			}(hostConfig.Host, checkConfig)
+				monitorHost(ctx, logger, host, check, metrics, cfg.RawRules, tags)
+			}(hostConfig.Host, checkConfig, hostConfig.Tags)
 		}
 	}
 }
@@ -55,6 +55,7 @@ func monitorHost(
 	checkConfig config.CheckConfig,
 	promMetricsEndpoint *metrics.PrometheusMetrics,
 	confRules []rules.Rule,
+	hostTags []string,
 ) {
 	interval, err := time.ParseDuration(checkConfig.Interval)
 	if err != nil {
@@ -87,17 +88,21 @@ func monitorHost(
 			downtime = updateDowntime(downtime, interval, result.Success)
 
 			for _, rule := range confRules {
+				if !hasMatchingTags(hostTags, rule.Tags) {
+					continue
+				}
+
 				if time.Since(lastRuleEval[rule.Name]) < time.Minute {
 					continue
 				}
 
-				triggered, err := rules.EvaluateRule(rule, downtime, result.ResponseTime)
-				if err != nil {
-					logger.Error(err)
+				ruleResult := rules.EvaluateRule(rule, downtime, result.ResponseTime)
+				if ruleResult.Error != nil {
+					logger.Error(ruleResult.Error)
 					continue
 				}
 
-				if triggered {
+				if ruleResult.Satisfied {
 					lastRuleEval[rule.Name] = time.Now()
 					logger.Warnf("Rule triggered: host: %s, port: %s, protocol: %s, rule: %s",
 						host, checkConfig.Port, checkConfig.Protocol, rule.Name)
@@ -159,4 +164,22 @@ func waitForShutdown(logger *zap.SugaredLogger, cancel context.CancelFunc, wg *s
 	logger.Info("Received shutdown signal, exiting...")
 	cancel()
 	wg.Wait()
+}
+
+func hasMatchingTags(hostTags, ruleTags []string) bool {
+	if len(ruleTags) == 0 {
+		return true
+	}
+
+	tagMap := make(map[string]bool)
+	for _, tag := range hostTags {
+		tagMap[tag] = true
+	}
+
+	for _, ruleTag := range ruleTags {
+		if tagMap[ruleTag] {
+			return true
+		}
+	}
+	return false
 }

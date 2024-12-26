@@ -10,8 +10,9 @@ import (
 )
 
 type Rule struct {
-	Name      string `yaml:"name"`
-	Condition string `yaml:"condition"`
+	Name      string   `yaml:"name"`
+	Condition string   `yaml:"condition"`
+	Tags      []string `yaml:"tags"`
 }
 
 var (
@@ -19,6 +20,7 @@ var (
 	ErrConditionCompile    = errors.New("failed to compile rule condition")
 	ErrConditionEval       = errors.New("failed to evaluate rule condition")
 	ErrNotBoolean          = errors.New("rule condition did not evaluate to a boolean")
+	ErrEmptyRuleValue      = errors.New("rule name or condition are empty")
 )
 
 type RuleEnvironment struct {
@@ -26,8 +28,32 @@ type RuleEnvironment struct {
 	ResponseTime int `expr:"responseTime"`
 }
 
+type RuleResult struct {
+	Rule      Rule
+	Satisfied bool
+	EvalTime  time.Time
+	Error     error
+}
+
 // Main function to evaluate a rule
-func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration) (bool, error) {
+func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration) RuleResult {
+	result := RuleResult{
+		Rule:     rule,
+		EvalTime: time.Now(),
+	}
+
+	if err := rule.Validate(); err != nil {
+		result.Error = fmt.Errorf("invalid rule: %w", err)
+		return result
+	}
+
+	satisfied, err := evaluateRuleInternal(rule, downtime, responseTime)
+	result.Satisfied = satisfied
+	result.Error = err
+	return result
+}
+
+func evaluateRuleInternal(rule Rule, downtime time.Duration, responseTime time.Duration) (bool, error) {
 	env := createExprEnv(downtime, responseTime)
 
 	program, err := expr.Compile(rule.Condition, expr.Env(env))
@@ -54,6 +80,16 @@ func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration)
 	}
 
 	return result, nil
+}
+
+func (r Rule) Validate() error {
+	if r.Name == "" {
+		return fmt.Errorf("rule name: '%s' cannot be empty w: %v", r.Name, ErrEmptyRuleValue)
+	}
+	if r.Condition == "" {
+		return fmt.Errorf("rule condition: '%s' cannot be empty w: %v", r.Condition, ErrEmptyRuleValue)
+	}
+	return nil
 }
 
 func createExprEnv(downtime, responseTime time.Duration) RuleEnvironment {

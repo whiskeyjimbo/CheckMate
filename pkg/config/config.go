@@ -18,6 +18,7 @@ type CheckConfig struct {
 
 type HostConfig struct {
 	Host   string        `yaml:"host"`
+	Tags   []string      `yaml:"tags"`
 	Checks []CheckConfig `yaml:"checks"`
 }
 
@@ -46,17 +47,17 @@ func loadConfig(configFile string) (*Config, error) {
 	return &config, nil
 }
 
-func LoadConfiguration(args []string) (*Config, error){
-    configFile := "config.yaml"
-    if len(os.Args) > 1 {
-        configFile = os.Args[1]
-    }
+func LoadConfiguration(args []string) (*Config, error) {
+	configFile := "config.yaml"
+	if len(os.Args) > 1 {
+		configFile = os.Args[1]
+	}
 
-    config, err := loadConfig(configFile)
-    if err != nil {
+	config, err := loadConfig(configFile)
+	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
-    }
-    return config, nil
+	}
+	return config, nil
 }
 
 func normalizeConfig(c *CheckConfig) {
