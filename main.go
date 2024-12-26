@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/whiskeyjimbo/CheckMate/pkg/checkers"
 	"github.com/whiskeyjimbo/CheckMate/pkg/config"
+	"github.com/whiskeyjimbo/CheckMate/pkg/health"
 	"github.com/whiskeyjimbo/CheckMate/pkg/metrics"
 	"github.com/whiskeyjimbo/CheckMate/pkg/rules"
 	_ "go.uber.org/automaxprocs"
@@ -21,6 +23,14 @@ func main() {
 	logger := initLogger()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	http.HandleFunc("/health/live", health.LivenessHandler)
+
+	go func() {
+		if err := http.ListenAndServe(":9101", nil); err != nil {
+			logger.Fatalf("Failed to start server: %v", err)
+		}
+	}()
 
 	config, err := config.LoadConfiguration(os.Args)
 	if err != nil {
