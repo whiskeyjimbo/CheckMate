@@ -14,7 +14,6 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 - Configurable check intervals per service
 - Prometheus metrics integration
 - Rule-based monitoring with custom conditions (WIP)
-- Structured logging with Zap
 - Concurrent monitoring of multiple hosts and services
 - Context-aware checks with timeouts (WIP)
 
