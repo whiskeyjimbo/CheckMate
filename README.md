@@ -150,6 +150,66 @@ Labels included with metrics:
 - `host`: Target hostname
 - `port`: Service port
 - `protocol`: Check protocol
+- `tags`: Comma-separated list of host tags
+
+Example Prometheus queries:
+```promql
+# Filter checks by tag
+checkmate_check_success{tags=~".*prod.*"}
+
+# Average response time for production web servers
+avg(checkmate_check_latency_milliseconds{tags=~".*prod.*", tags=~".*web.*"})
+
+# 95th percentile latency for internal services
+histogram_quantile(0.95, sum(rate(checkmate_check_latency_milliseconds_histogram{tags=~".*internal.*"}[5m])) by (le))
+```
+
+## Logging
+
+CheckMate uses structured logging with the following fields:
+- Basic check information:
+  - `host`: Target hostname
+  - `port`: Service port
+  - `protocol`: Check protocol
+  - `success`: Check result (true/false)
+  - `responseTime_us`: Response time in microseconds
+  - `tags`: Array of host tags
+- Rule evaluation:
+  - `rule`: Rule name
+  - `ruleTags`: Tags assigned to the rule
+  - `hostTags`: Tags assigned to the host
+  - `condition`: Rule condition
+  - `downtime`: Current downtime duration
+  - `responseTime`: Last check response time
+
+Example log output:
+```json
+{
+  "level": "info",
+  "ts": "2024-03-21T15:04:05.789Z",
+  "caller": "checkmate/main.go:123",
+  "msg": "Check succeeded",
+  "host": "prod-web-01",
+  "port": "80",
+  "protocol": "HTTP",
+  "responseTime_us": 150000,
+  "success": true,
+  "tags": ["prod", "web", "internal"]
+}
+
+{
+  "level": "warn",
+  "ts": "2024-03-21T15:04:05.789Z",
+  "caller": "checkmate/main.go:234",
+  "msg": "Rule condition met",
+  "rule": "high_latency",
+  "ruleTags": ["prod"],
+  "hostTags": ["prod", "web"],
+  "condition": "responseTime > 5s",
+  "downtime": "0s",
+  "responseTime": "6.2s"
+}
+```
 
 ## Development
 
