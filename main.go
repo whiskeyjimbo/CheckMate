@@ -139,14 +139,6 @@ func monitorHost(
 						Port:     checkConfig.Port,
 						Protocol: string(checkConfig.Protocol),
 					})
-					logger.Warnw("Rule condition met",
-						"rule", rule.Name,
-						"ruleTags", rule.Tags,
-						"hostTags", hostTags,
-						"condition", rule.Condition,
-						"downtime", downtime,
-						"responseTime", result.ResponseTime,
-					)
 				}
 			}
 
