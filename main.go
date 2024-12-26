@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -24,16 +23,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	http.HandleFunc("/health/live", health.LivenessHandler)
-	http.HandleFunc("/health/ready", health.ReadinessHandler)
-
 	health.SetReady(false)
-
-	go func() {
-		if err := http.ListenAndServe(":9101", nil); err != nil {
-			logger.Fatalf("Failed to start server: %v", err)
-		}
-	}()
 
 	config, err := config.LoadConfiguration(os.Args)
 	if err != nil {

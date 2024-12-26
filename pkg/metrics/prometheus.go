@@ -8,6 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/whiskeyjimbo/CheckMate/pkg/health"
 	"go.uber.org/zap"
 )
 
@@ -40,10 +41,12 @@ func NewPrometheusMetrics(logger *zap.SugaredLogger) *PrometheusMetrics {
 
 func StartMetricsServer(logger *zap.SugaredLogger) {
 	http.Handle("/metrics", promhttp.Handler())
+	http.HandleFunc("/health/live", health.LivenessHandler)
+	http.HandleFunc("/health/ready", health.ReadinessHandler)
 
 	go func() {
 		if err := http.ListenAndServe(metricsPort, nil); err != nil && err != http.ErrServerClosed {
-			logger.Fatalf("Failed to start Prometheus metrics server: %v", err)
+			logger.Fatalf("Failed to start metrics server: %v", err)
 		}
 	}()
 }
