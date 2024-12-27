@@ -10,7 +10,8 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 ## Features
 
 ### Core Features
-- Multi-protocol support (TCP, HTTP, SMTP, DNS(*))
+- Multi-protocol support (TCP, HTTP, SMTP, DNS)
+- Hierarchical configuration (Sites → Hosts → Checks)
 - Configurable check intervals per service
 - Prometheus metrics integration
 - Rule-based monitoring with custom conditions
@@ -21,102 +22,67 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 - Response time measurements
 - Rule-based alerting with customizable conditions
 - Prometheus-compatible metrics endpoint
-- downtime tracking
+- Downtime tracking
 - Latency histograms and gauges
 
 ### Technical Features
 - YAML-based configuration
 - Modular architecture for easy extension using interfaces
-
-### Health Checks
-CheckMate provides Kubernetes-compatible health check endpoints:
-
-- `/health/live` - Liveness probe
-  - Returns 200 OK when the service is running
-  - not sure how useful this is right now in its current state.
-
-- `/health/ready` - Readiness probe
-  - Returns 200 OK when the service is ready to receive traffic
-  - Returns 503 Service Unavailable during initialization
-
-All health check endpoints are served on port 9100 alongside the metrics endpoint.
-
-Example Kubernetes probe configuration:
-```yaml
-livenessProbe:
-  httpGet:
-    path: /health/live
-    port: 9100
-  initialDelaySeconds: 5
-  periodSeconds: 10
-readinessProbe:
-  httpGet:
-    path: /health/ready
-    port: 9100
-  initialDelaySeconds: 5
-  periodSeconds: 10
-```
-
-## Installation
-
-### Prerequisites
-- Go
-- Git
-- Make (optional, for using Makefile commands)
-- Ko (optional, for building a docker image)
-
-### Quick Start
-
-1. Clone the repository:
-```bash
-git clone https://github.com/whiskeyjimbo/CheckMate.git
-cd CheckMate
-```
-
-2. Build using Make:
-```bash
-make build
-```
-
-Or build directly with Go:
-```bash
-go build
-```
+- Site-based infrastructure organization
+- Tag inheritance (site tags are inherited by hosts)
 
 ## Configuration
 
 CheckMate is configured using a YAML file. Here's a complete example:
 
 ```yaml
-hosts:
-  - host: example.com
-    tags: ["prod", "web"]
-    checks:
-      - port: "80"
-        protocol: HTTP
-        interval: 30s
-      - port: "443"
-        protocol: TCP
-        interval: 1m
+sites:
+  - name: us-east-1
+    tags: ["prod", "aws", "use1"]
+    hosts:
+      - host: api.example.com
+        tags: ["api", "public"]
+        checks:
+          - port: "443"
+            protocol: HTTP
+            interval: 30s
+          - port: "80"
+            protocol: TCP
+            interval: 1m
+
+  - name: eu-west-1
+    tags: ["prod", "aws", "euw1"]
+    hosts:
+      - host: eu.example.com
+        tags: ["api", "public"]
+        checks:
+          - port: "443"
+            protocol: HTTP
+            interval: 30s
 
 rules:
   - name: high_latency_warning
     condition: "responseTime > 2s"
     tags: ["prod"]
-    notifications: ["log"]  # This rule only uses log notifications
+    notifications: ["log"]
   
   - name: critical_downtime
     condition: "downtime > 5m"
     tags: ["prod"]
-    notifications: ["log", "slack"]  # This rule uses multiple notification types
+    notifications: ["log", "slack"]
 
 notifications:
-  - type: "log"    # Uses structured logging
+  - type: "log"
 ```
+
+### Site Configuration
+- `name`: Unique identifier for the site
+- `tags`: List of tags inherited by all hosts in the site
+- `hosts`: List of hosts in this site
 
 ### Host Configuration
 - `host`: The hostname or IP to monitor
-- `tags`: List of tags for filtering rules
+- `tags`: Additional tags specific to this host (combined with site tags)
 - `checks`: List of service checks
   - `port`: Port number to check
   - `protocol`: One of: TCP, HTTP, SMTP, DNS
@@ -133,20 +99,6 @@ notifications:
 - `type`: Type of notification ("log", with more coming soon)
 - Each notification type can have its own configuration options
 
-## Health Checks
-
-CheckMate provides Kubernetes-compatible health check endpoints:
-
-- `/health/live` - Liveness probe
-  - Returns 200 OK when the service is running
-  - Simple uptime check
-
-- `/health/ready` - Readiness probe
-  - Returns 200 OK when the service is ready to receive traffic
-  - Returns 503 Service Unavailable during initialization
-
-All health check endpoints are served on port 9100 alongside the metrics endpoint.
-
 ## Metrics
 
 CheckMate exposes Prometheus metrics at `:9100/metrics` including:
@@ -155,27 +107,42 @@ CheckMate exposes Prometheus metrics at `:9100/metrics` including:
 - `checkmate_check_latency_milliseconds_histogram`: Response time distribution
 
 Labels included with metrics:
+- `site`: Site name
 - `host`: Target hostname
 - `port`: Service port
 - `protocol`: Check protocol
-- `tags`: Comma-separated list of host tags
+- `tags`: Comma-separated list of combined site and host tags
 
 Example Prometheus queries:
 ```promql
-# Filter checks by tag
-checkmate_check_success{tags=~".*prod.*"}
+# Filter checks by site
+checkmate_check_success{site="us-east-1"}
 
-# Average response time for production web servers
-avg(checkmate_check_latency_milliseconds{tags=~".*prod.*", tags=~".*web.*"})
+# Average response time for production APIs
+avg(checkmate_check_latency_milliseconds{tags=~".*prod.*", tags=~".*api.*"})
 
-# 95th percentile latency for internal services
-histogram_quantile(0.95, sum(rate(checkmate_check_latency_milliseconds_histogram{tags=~".*internal.*"}[5m])) by (le))
+# 95th percentile latency by site
+histogram_quantile(0.95, sum(rate(checkmate_check_latency_milliseconds_histogram[5m])) by (le, site))
 ```
+
+## Health Checks
+
+CheckMate provides Kubernetes-compatible health check endpoints:
+
+- `/health/live` - Liveness probe
+  - Returns 200 OK when the service is running
+
+- `/health/ready` - Readiness probe
+  - Returns 200 OK when the service is ready to receive traffic
+  - Returns 503 Service Unavailable during initialization
+
+All health check endpoints are served on port 9100 alongside the metrics endpoint.
 
 ## Logging
 
 CheckMate uses structured logging with the following fields:
 - Basic check information:
+  - `site`: Site name
   - `host`: Target hostname
   - `port`: Service port
   - `protocol`: Check protocol
@@ -190,36 +157,18 @@ CheckMate uses structured logging with the following fields:
   - `downtime`: Current downtime duration
   - `responseTime`: Last check response time
 
-Example log output:
-```json
-{
-  "level": "info",
-  "ts": "2024-03-21T15:04:05.789Z",
-  "caller": "checkmate/main.go:123",
-  "msg": "Check succeeded",
-  "host": "prod-web-01",
-  "port": "80",
-  "protocol": "HTTP",
-  "responseTime_us": 150000,
-  "success": true,
-  "tags": ["prod", "web", "internal"]
-}
+### Quick Start
 
-{
-  "level": "warn",
-  "ts": "2024-03-21T15:04:05.789Z",
-  "caller": "checkmate/main.go:234",
-  "msg": "Rule condition met",
-  "rule": "high_latency",
-  "ruleTags": ["prod"],
-  "hostTags": ["prod", "web"],
-  "condition": "responseTime > 5s",
-  "downtime": "0s",
-  "responseTime": "6.2s"
-}
+1. Clone the repository:
+```bash
+git clone https://github.com/whiskeyjimbo/CheckMate.git
+cd CheckMate
 ```
 
-## Development
+2. Build using Make:
+```bash
+make build
+```
 
 ### Available Make Commands
 ```bash
@@ -259,10 +208,11 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 - [ ] Additional protocol support (HTTPS, TLS verification)
 - [ ] Notification system integration (Slack, Email, etc.)
 - [ ] Configurable notification thresholds
-- [ ] database support
+- [ ] Database support for historical data
 - [ ] Docker container
-- [ ] Web UI for monitoring (MAYBE) 
-- [X] Kubernetes readiness/liveness probe support
+- [ ] Web UI for monitoring (MAYBE)
+- [x] Kubernetes readiness/liveness probe support
 - [x] Multiple host monitoring
 - [x] Multi-protocol per host
 - [x] Service tagging system
+- [x] Site-based infrastructure organization
