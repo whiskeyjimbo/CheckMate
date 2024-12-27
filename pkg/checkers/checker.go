@@ -31,7 +31,7 @@ func NewChecker(protocol string) (Checker, error) {
 	case ProtocolTCP:
 		return &TCPChecker{protocol: ProtocolTCP}, nil
 	case ProtocolHTTP:
-		return &HTTPChecker{protocol: ProtocolHTTP}, nil
+		return NewHTTPChecker(ProtocolHTTP), nil
 	case ProtocolSMTP:
 		return &SMTPChecker{protocol: ProtocolSMTP}, nil
 	case ProtocolDNS:
