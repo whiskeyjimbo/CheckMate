@@ -41,14 +41,16 @@ sites:
     tags: ["prod", "aws", "use1"]
     hosts:
       - host: api.example.com
-        tags: ["api", "public"]
+        tags: ["public"]
         checks:
           - port: "443"
             protocol: HTTP
             interval: 30s
-          - port: "80"
+            tags: ["https", "api"]
+          - port: "22"
             protocol: TCP
             interval: 1m
+            tags: ["ssh"]
 
   - name: eu-west-1
     tags: ["prod", "aws", "euw1"]
@@ -87,6 +89,7 @@ notifications:
   - `port`: Port number to check
   - `protocol`: One of: TCP, HTTP, SMTP, DNS
   - `interval`: Check frequency (e.g., "30s", "1m")
+  - `tags`: Additional tags specific to this check (combined with site and host tags)
 
 ### Rule Configuration
 - `name`: Unique rule identifier

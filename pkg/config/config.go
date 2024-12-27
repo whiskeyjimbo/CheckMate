@@ -11,9 +11,10 @@ import (
 )
 
 type CheckConfig struct {
-	Port     string `yaml:"port"`
-	Protocol string `yaml:"protocol"`
-	Interval string `yaml:"interval"`
+	Port     string   `yaml:"port"`
+	Protocol string   `yaml:"protocol"`
+	Interval string   `yaml:"interval"`
+	Tags     []string `yaml:"tags"`
 }
 
 type HostConfig struct {

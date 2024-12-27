@@ -30,6 +30,9 @@ type Notification struct {
 	Host     string
 	Port     string
 	Protocol string
+	PortTags []string
+	HostTags []string
+	SiteTags []string
 }
 
 type Notifier interface {

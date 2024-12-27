@@ -65,9 +65,10 @@ func startMonitoring(
 ) {
 	for _, site := range cfg.Sites {
 		for _, hostConfig := range site.Hosts {
-			combinedTags := append(site.Tags, hostConfig.Tags...)
 			for _, checkConfig := range hostConfig.Checks {
 				wg.Add(1)
+				combinedTags := deduplicateTags(append(append(site.Tags, hostConfig.Tags...), checkConfig.Tags...))
+
 				go func(site string, host string, check config.CheckConfig, tags []string) {
 					defer wg.Done()
 					monitorHost(ctx, logger, site, host, check, metrics, cfg.Rules, tags, notifierMap)
@@ -75,6 +76,19 @@ func startMonitoring(
 			}
 		}
 	}
+}
+
+func deduplicateTags(tags []string) []string {
+	seen := make(map[string]bool)
+	deduped := make([]string, 0, len(tags))
+
+	for _, tag := range tags {
+		if !seen[tag] {
+			seen[tag] = true
+			deduped = append(deduped, tag)
+		}
+	}
+	return deduped
 }
 
 // TODO: getting pretty large, need to break up
@@ -112,7 +126,6 @@ func monitorHost(
 			checkCtx, checkCancel := context.WithTimeout(ctx, 10*time.Second)
 			result := checker.Check(checkCtx, address)
 			checkCancel()
-			fmt.Printf("Address: %s\nResult: %v", address, result)
 
 			logCheckResult(logger, site, host, checkConfig, result.Success, result.Error, result.ResponseTime, hostTags)
 
@@ -201,7 +214,7 @@ func initLogger() *zap.SugaredLogger {
 	return zapL.Sugar()
 }
 
-func logCheckResult(logger *zap.SugaredLogger, site string, host string, checkConfig config.CheckConfig, success bool, err error, elapsed time.Duration, hostTags []string) {
+func logCheckResult(logger *zap.SugaredLogger, site string, host string, checkConfig config.CheckConfig, success bool, err error, elapsed time.Duration, tags []string) {
 	l := logger.With(
 		"site", site,
 		"host", host,
@@ -209,14 +222,15 @@ func logCheckResult(logger *zap.SugaredLogger, site string, host string, checkCo
 		"protocol", checkConfig.Protocol,
 		"responseTime_us", elapsed,
 		"success", success,
-		"tags", hostTags,
+		"tags", tags,
+		"portTags", checkConfig.Tags,
 	)
 
 	switch {
 	case err != nil:
 		l.Warn(err)
 	case success:
-		// l.Info("Check succeeded")
+		l.Info("Check succeeded")
 	default:
 		l.Error("Unknown failure")
 	}
@@ -245,13 +259,13 @@ func waitForShutdown(logger *zap.SugaredLogger, cancel context.CancelFunc, wg *s
 	wg.Wait()
 }
 
-func hasMatchingTags(hostTags, ruleTags []string) bool {
+func hasMatchingTags(allTags, ruleTags []string) bool {
 	if len(ruleTags) == 0 {
 		return true
 	}
 
 	tagMap := make(map[string]bool)
-	for _, tag := range hostTags {
+	for _, tag := range allTags {
 		tagMap[tag] = true
 	}
 
