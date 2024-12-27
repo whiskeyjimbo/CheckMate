@@ -32,6 +32,13 @@ type Config struct {
 	Notifications []NotificationConfig `yaml:"notifications"`
 }
 
+type RuleConfig struct {
+	Name          string   `yaml:"name"`
+	Condition     string   `yaml:"condition"`
+	Tags          []string `yaml:"tags"`
+	Notifications []string `yaml:"notifications"`
+}
+
 func loadConfig(configFile string) (*Config, error) {
 	fileContent, err := os.ReadFile(configFile)
 	if err != nil {
