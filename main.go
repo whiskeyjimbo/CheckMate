@@ -31,7 +31,8 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	var notifiers []notifications.Notifier
+	notifierMap := make(map[string]notifications.Notifier)
+
 	for _, n := range config.Notifications {
 		notifier, err := notifications.NewNotifier(n.Type, logger)
 		if err != nil {
@@ -41,7 +42,7 @@ func main() {
 			logger.Fatal(err)
 		}
 		defer notifier.Close()
-		notifiers = append(notifiers, notifier)
+		notifierMap[n.Type] = notifier
 	}
 
 	metrics.StartMetricsServer(logger)
@@ -49,7 +50,7 @@ func main() {
 	health.SetReady(true)
 
 	var wg sync.WaitGroup
-	startMonitoring(ctx, &wg, logger, config, metrics.NewPrometheusMetrics(logger), notifiers)
+	startMonitoring(ctx, &wg, logger, config, metrics.NewPrometheusMetrics(logger), notifierMap)
 
 	waitForShutdown(logger, cancel, &wg)
 }
@@ -60,14 +61,14 @@ func startMonitoring(
 	logger *zap.SugaredLogger,
 	cfg *config.Config,
 	metrics *metrics.PrometheusMetrics,
-	notifiers []notifications.Notifier,
+	notifierMap map[string]notifications.Notifier,
 ) {
 	for _, hostConfig := range cfg.Hosts {
 		for _, checkConfig := range hostConfig.Checks {
 			wg.Add(1)
 			go func(host string, check config.CheckConfig, tags []string) {
 				defer wg.Done()
-				monitorHost(ctx, logger, host, check, metrics, cfg.Rules, tags, notifiers)
+				monitorHost(ctx, logger, host, check, metrics, cfg.Rules, tags, notifierMap)
 			}(hostConfig.Host, checkConfig, hostConfig.Tags)
 		}
 	}
@@ -82,7 +83,7 @@ func monitorHost(
 	promMetricsEndpoint *metrics.PrometheusMetrics,
 	confRules []rules.Rule,
 	hostTags []string,
-	notifiers []notifications.Notifier,
+	notifierMap map[string]notifications.Notifier,
 ) {
 	interval, err := time.ParseDuration(checkConfig.Interval)
 	if err != nil {
@@ -131,29 +132,55 @@ func monitorHost(
 				}
 
 				ruleResult := rules.EvaluateRule(rule, downtime, result.ResponseTime)
-				if ruleResult.Error != nil {
-					logger.Errorw("Rule evaluation failed",
-						"rule", rule.Name,
-						"ruleTags", rule.Tags,
-						"hostTags", hostTags,
-						"error", ruleResult.Error,
-					)
-				} else if ruleResult.Satisfied {
-					for _, notifier := range notifiers {
-						notifier.SendNotification(ctx, notifications.Notification{
-							Message:  fmt.Sprintf("Rule condition met: %s", rule.Name),
-							Level:    notifications.WarningLevel,
-							Tags:     hostTags,
-							Host:     host,
-							Port:     checkConfig.Port,
-							Protocol: string(checkConfig.Protocol),
-						})
+				if ruleResult.Error != nil || ruleResult.Satisfied {
+					notification := notifications.Notification{
+						Message:  buildNotificationMessage(rule, ruleResult),
+						Level:    getNotificationLevel(ruleResult),
+						Tags:     hostTags,
+						Host:     host,
+						Port:     checkConfig.Port,
+						Protocol: string(checkConfig.Protocol),
 					}
+					sendRuleNotifications(ctx, rule, notification, notifierMap)
 				}
 				lastRuleEval[rule.Name] = time.Now()
 			}
 
 			sleepUntilNextCheck(interval, time.Since(checkStart))
+		}
+	}
+}
+
+func buildNotificationMessage(rule rules.Rule, result rules.RuleResult) string {
+	if result.Error != nil {
+		return fmt.Sprintf("Rule evaluation failed: %v", result.Error)
+	}
+	return fmt.Sprintf("Rule condition met: %s", rule.Name)
+}
+
+func getNotificationLevel(result rules.RuleResult) notifications.NotificationLevel {
+	if result.Error != nil {
+		return notifications.ErrorLevel
+	}
+	return notifications.WarningLevel
+}
+
+func sendRuleNotifications(
+	ctx context.Context,
+	rule rules.Rule,
+	notification notifications.Notification,
+	notifierMap map[string]notifications.Notifier,
+) {
+	if len(rule.Notifications) == 0 {
+		for _, notifier := range notifierMap {
+			notifier.SendNotification(ctx, notification)
+		}
+		return
+	}
+
+	for _, notificationType := range rule.Notifications {
+		if notifier, ok := notifierMap[notificationType]; ok {
+			notifier.SendNotification(ctx, notification)
 		}
 	}
 }
