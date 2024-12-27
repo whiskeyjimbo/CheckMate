@@ -16,7 +16,7 @@ GOLINT=golangci-lint
 # Build flags
 LDFLAGS=-ldflags "-X main.Version=${VERSION}"
 
-.PHONY: all build clean test coverage lint deps docker-build docker-run docker-push help
+.PHONY: all build clean test coverage lint deps docker-build docker-run docker-push git-release help
 
 all: clean lint test build
 
@@ -56,6 +56,11 @@ docker-push:
 	docker push $(DOCKER_IMAGE):$(VERSION)
 	docker push $(DOCKER_IMAGE):latest
 
+git-release:
+	git tag "$(svu next)"
+	git push origin "$(svu next)"
+	goreleaser release --clean
+
 dev: deps lint test build
 
 help:
@@ -71,4 +76,5 @@ help:
 	@echo "  docker-build-local : Build Docker image"
 	@echo "  docker-run   : Run Docker container"
 	@echo "  docker-push  : Push Docker image"
+	@echo "  git-release  : Create a release using goreleaser"
 	@echo "  help         : Show this help message" 
