@@ -67,7 +67,7 @@ func startMonitoring(
 			wg.Add(1)
 			go func(host string, check config.CheckConfig, tags []string) {
 				defer wg.Done()
-				monitorHost(ctx, logger, host, check, metrics, cfg.RawRules, tags, notifiers)
+				monitorHost(ctx, logger, host, check, metrics, cfg.Rules, tags, notifiers)
 			}(hostConfig.Host, checkConfig, hostConfig.Tags)
 		}
 	}

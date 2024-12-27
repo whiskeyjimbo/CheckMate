@@ -10,9 +10,10 @@ import (
 )
 
 type Rule struct {
-	Name      string   `yaml:"name"`
-	Condition string   `yaml:"condition"`
-	Tags      []string `yaml:"tags"`
+	Name          string   `yaml:"name"`
+	Condition     string   `yaml:"condition"`
+	Tags          []string `yaml:"tags"`
+	Notifications []string `yaml:"notifications"`
 }
 
 var (
@@ -115,4 +116,8 @@ func processCondition(condition string, downtime, responseTime time.Duration) (s
 
 func timeDurationToSeconds(d time.Duration) int {
 	return int(d.Seconds())
+}
+
+func (r Rule) GetNotificationTypes() []string {
+	return r.Notifications
 }
