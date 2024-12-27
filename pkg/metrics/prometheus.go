@@ -51,13 +51,21 @@ func StartMetricsServer(logger *zap.SugaredLogger) {
 	}()
 }
 
-func (p *PrometheusMetrics) Update(host, port, protocol string, tags []string, success bool, elapsed time.Duration) {
+func (p *PrometheusMetrics) Update(
+	site string,
+	host string,
+	port string,
+	protocol string,
+	tags []string,
+	success bool,
+	responseTime time.Duration,
+) {
 	labels := MetricLabels{
 		Host:     host,
 		Port:     port,
 		Protocol: protocol,
 	}
-	p.updateMetrics(labels, tags, success, elapsed)
+	p.updateMetrics(labels, tags, success, responseTime)
 }
 
 func (p *PrometheusMetrics) updateMetrics(labels MetricLabels, tags []string, success bool, elapsed time.Duration) {

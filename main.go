@@ -63,13 +63,16 @@ func startMonitoring(
 	metrics *metrics.PrometheusMetrics,
 	notifierMap map[string]notifications.Notifier,
 ) {
-	for _, hostConfig := range cfg.Hosts {
-		for _, checkConfig := range hostConfig.Checks {
-			wg.Add(1)
-			go func(host string, check config.CheckConfig, tags []string) {
-				defer wg.Done()
-				monitorHost(ctx, logger, host, check, metrics, cfg.Rules, tags, notifierMap)
-			}(hostConfig.Host, checkConfig, hostConfig.Tags)
+	for _, site := range cfg.Sites {
+		for _, hostConfig := range site.Hosts {
+			combinedTags := append(site.Tags, hostConfig.Tags...)
+			for _, checkConfig := range hostConfig.Checks {
+				wg.Add(1)
+				go func(site string, host string, check config.CheckConfig, tags []string) {
+					defer wg.Done()
+					monitorHost(ctx, logger, site, host, check, metrics, cfg.Rules, tags, notifierMap)
+				}(site.Name, hostConfig.Host, checkConfig, combinedTags)
+			}
 		}
 	}
 }
@@ -78,6 +81,7 @@ func startMonitoring(
 func monitorHost(
 	ctx context.Context,
 	logger *zap.SugaredLogger,
+	site string,
 	host string,
 	checkConfig config.CheckConfig,
 	promMetricsEndpoint *metrics.PrometheusMetrics,
@@ -108,10 +112,12 @@ func monitorHost(
 			checkCtx, checkCancel := context.WithTimeout(ctx, 10*time.Second)
 			result := checker.Check(checkCtx, address)
 			checkCancel()
+			fmt.Printf("Address: %s\nResult: %v", address, result)
 
-			logCheckResult(logger, host, checkConfig, result.Success, result.Error, result.ResponseTime, hostTags)
+			logCheckResult(logger, site, host, checkConfig, result.Success, result.Error, result.ResponseTime, hostTags)
 
 			promMetricsEndpoint.Update(
+				site,
 				host,
 				checkConfig.Port,
 				string(checkConfig.Protocol),
@@ -195,8 +201,9 @@ func initLogger() *zap.SugaredLogger {
 	return zapL.Sugar()
 }
 
-func logCheckResult(logger *zap.SugaredLogger, host string, checkConfig config.CheckConfig, success bool, err error, elapsed time.Duration, hostTags []string) {
+func logCheckResult(logger *zap.SugaredLogger, site string, host string, checkConfig config.CheckConfig, success bool, err error, elapsed time.Duration, hostTags []string) {
 	l := logger.With(
+		"site", site,
 		"host", host,
 		"port", checkConfig.Port,
 		"protocol", checkConfig.Protocol,
@@ -209,7 +216,7 @@ func logCheckResult(logger *zap.SugaredLogger, host string, checkConfig config.C
 	case err != nil:
 		l.Warn(err)
 	case success:
-		l.Info("Check succeeded")
+		// l.Info("Check succeeded")
 	default:
 		l.Error("Unknown failure")
 	}

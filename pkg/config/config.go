@@ -26,8 +26,14 @@ type NotificationConfig struct {
 	Type string `yaml:"type"`
 }
 
+type SiteConfig struct {
+	Name  string       `yaml:"name"`
+	Tags  []string     `yaml:"tags"`
+	Hosts []HostConfig `yaml:"hosts"`
+}
+
 type Config struct {
-	Hosts         []HostConfig         `yaml:"hosts"`
+	Sites         []SiteConfig         `yaml:"sites"`
 	Rules         []rules.Rule         `yaml:"rules"`
 	Notifications []NotificationConfig `yaml:"notifications"`
 }
@@ -43,9 +49,11 @@ func loadConfig(configFile string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	for _, host := range config.Hosts {
-		for i := range host.Checks {
-			normalizeConfig(&host.Checks[i])
+	for _, site := range config.Sites {
+		for _, host := range site.Hosts {
+			for i := range host.Checks {
+				normalizeConfig(&host.Checks[i])
+			}
 		}
 	}
 
