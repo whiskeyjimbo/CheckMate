@@ -3,6 +3,7 @@ BINARY_NAME=checkmate
 MAIN_PATH=./main.go
 DOCKER_IMAGE=checkmate
 VERSION=$(shell svu next)
+CONFIG_PATH=$(wordlist 2,2,$(MAKECMDGOALS))
 
 # Go commands
 GOCMD=go
@@ -16,12 +17,16 @@ GOLINT=golangci-lint
 # Build flags
 LDFLAGS=-ldflags "-X main.Version=${VERSION}"
 
-.PHONY: all build clean test coverage lint deps docker-build docker-run docker-push git-release help
+.PHONY: all build run clean test coverage lint deps docker-build docker-run docker-push git-release help
 
 all: clean lint test build
 
 build:
 	CGO_ENABLED=0 $(GOBUILD) $(LDFLAGS) -o $(BINARY_NAME) $(MAIN_PATH)
+
+run:
+	$(GOBUILD) $(LDFLAGS) -o $(BINARY_NAME) $(MAIN_PATH)
+	./$(BINARY_NAME) $(CONFIG_PATH)
 
 clean:
 	$(GOCLEAN)
@@ -67,6 +72,7 @@ help:
 	@echo "Available targets:"
 	@echo "  all          : Clean, lint, test, and build"
 	@echo "  build        : Build the application"
+	@echo "  run          : Run the application"
 	@echo "  clean        : Clean build files"
 	@echo "  test         : Run tests"
 	@echo "  coverage     : Run tests with coverage report"
