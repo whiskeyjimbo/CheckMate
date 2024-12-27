@@ -14,7 +14,7 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 - Configurable check intervals per service
 - Prometheus metrics integration
 - Rule-based monitoring with custom conditions
-- Flexible Notification system with multiple providers
+- Flexible notification system with rule-specific routing
 
 ### Metrics & Monitoring
 - Service availability status
@@ -85,12 +85,12 @@ go build
 
 ## Configuration
 
-Create a `config.yaml` file with your service definitions and monitoring rules:
+CheckMate is configured using a YAML file. Here's a complete example:
 
 ```yaml
 hosts:
   - host: example.com
-    tags: ["prod", "external"]    # Host tags
+    tags: ["prod", "web"]
     checks:
       - port: "80"
         protocol: HTTP
@@ -98,81 +98,54 @@ hosts:
       - port: "443"
         protocol: TCP
         interval: 1m
+
 rules:
-  - name: high_latency_prod
-    condition: "responseTime > 5s"
-    tags: ["prod"]               # Rule tags
-  - name: extended_downtime
+  - name: high_latency_warning
+    condition: "responseTime > 2s"
+    tags: ["prod"]
+    notifications: ["log"]  # This rule only uses log notifications
+  
+  - name: critical_downtime
     condition: "downtime > 5m"
-    tags: ["external"]           # Rule tags
+    tags: ["prod"]
+    notifications: ["log", "slack"]  # This rule uses multiple notification types
+
 notifications:
-  - type: "log"    # Uses zap 
-  # Future supported types will include:
-  # - type: "slack"
-  # - type: "email"
+  - type: "log"    # Uses structured logging
 ```
 
-### Configuration Options
-
-#### Host Configuration
-- `host`: Target hostname or IP address
-- `tags`: List of tags for grouping and rule targeting (optional)
+### Host Configuration
+- `host`: The hostname or IP to monitor
+- `tags`: List of tags for filtering rules
 - `checks`: List of service checks
-  - `port`: Service port
-  - `protocol`: Check protocol (HTTP, TCP, SMTP, DNS)
+  - `port`: Port number to check
+  - `protocol`: One of: TCP, HTTP, SMTP, DNS
   - `interval`: Check frequency (e.g., "30s", "1m")
 
-#### Rule Configuration
-- `name`: Rule identifier
-- `condition`: Expression using variables:
-  - `responseTime`: Service response time in seconds
-  - `downtime`: Accumulated downtime in seconds
-- `tags`: List of tags to target specific hosts (optional)
+### Rule Configuration
+- `name`: Unique rule identifier
+- `condition`: Expression to evaluate (uses responseTime and downtime variables)
+- `tags`: List of tags to match against hosts
+- `notifications`: List of notification types to use when rule triggers
+  - If omitted, all configured notifiers will be used
 
-#### Notifications Configuration
-- `type`: Notification type (currently only `log` is supported)
+### Notification Configuration
+- `type`: Type of notification ("log", with more coming soon)
+- Each notification type can have its own configuration options
 
-### Tag System
+## Health Checks
 
-CheckMate uses tags to create flexible associations between hosts and rules:
+CheckMate provides Kubernetes-compatible health check endpoints:
 
-- **Host Tags**: Group hosts by environment, purpose, or any custom category
-- **Rule Tags**: Target rules to specific groups of hosts
-- **Tag Matching**:
-  - Rules apply to hosts when they share at least one matching tag
-  - Rules with no tags apply to all hosts
-  - Hosts with no tags only match rules with no tags
+- `/health/live` - Liveness probe
+  - Returns 200 OK when the service is running
+  - Simple uptime check
 
-Example:
-```yaml
-hosts:
-  - host: "prod-web"
-    tags: ["prod", "web"]
-    checks:
-      - port: "80"
-        protocol: HTTP
-        interval: 5s
+- `/health/ready` - Readiness probe
+  - Returns 200 OK when the service is ready to receive traffic
+  - Returns 503 Service Unavailable during initialization
 
-  - host: "dev-web"
-    tags: ["dev", "web"]
-    checks:
-      - port: "80"
-        protocol: HTTP
-        interval: 30s
-
-rules:
-  - name: "prod_latency"
-    condition: "responseTime > 2s"
-    tags: ["prod"]           # Only applies to prod hosts
-  
-  - name: "web_downtime"
-    condition: "downtime > 30s"
-    tags: ["web"]           # Applies to all web hosts
-  
-  - name: "dev_alert"
-    condition: "downtime > 5m"
-    tags: ["dev"]           # Only applies to dev hosts
-```
+All health check endpoints are served on port 9100 alongside the metrics endpoint.
 
 ## Metrics
 
