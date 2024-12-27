@@ -2,7 +2,7 @@
 BINARY_NAME=checkmate
 MAIN_PATH=./main.go
 DOCKER_IMAGE=checkmate
-VERSION?=1.0.0
+VERSION=$(shell svu next)
 
 # Go commands
 GOCMD=go
@@ -57,8 +57,8 @@ docker-push:
 	docker push $(DOCKER_IMAGE):latest
 
 git-release:
-	git tag "$(svu next)"
-	git push origin "$(svu next)"
+	git tag $(VERSION)
+	git push origin $(VERSION)
 	goreleaser release --clean
 
 dev: deps lint test build
