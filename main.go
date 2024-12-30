@@ -64,15 +64,15 @@ func startMonitoring(
 	notifierMap map[string]notifications.Notifier,
 ) {
 	for _, site := range cfg.Sites {
-		for _, hostConfig := range site.Hosts {
-			for _, checkConfig := range hostConfig.Checks {
+		for _, group := range site.Groups {
+			for _, checkConfig := range group.Checks {
 				wg.Add(1)
-				combinedTags := deduplicateTags(append(append(site.Tags, hostConfig.Tags...), checkConfig.Tags...))
+				combinedTags := deduplicateTags(append(append(site.Tags, group.Tags...), checkConfig.Tags...))
 
-				go func(site string, host string, check config.CheckConfig, tags []string) {
+				go func(site string, group config.GroupConfig, check config.CheckConfig, tags []string) {
 					defer wg.Done()
-					monitorHost(ctx, logger, site, host, check, metrics, cfg.Rules, tags, notifierMap)
-				}(site.Name, hostConfig.Host, checkConfig, combinedTags)
+					monitorGroup(ctx, logger, site, group, check, metrics, cfg.Rules, tags, notifierMap)
+				}(site.Name, group, checkConfig, combinedTags)
 			}
 		}
 	}
@@ -92,15 +92,15 @@ func deduplicateTags(tags []string) []string {
 }
 
 // TODO: getting pretty large, need to break up
-func monitorHost(
+func monitorGroup(
 	ctx context.Context,
 	logger *zap.SugaredLogger,
 	site string,
-	host string,
+	group config.GroupConfig,
 	checkConfig config.CheckConfig,
 	promMetricsEndpoint *metrics.PrometheusMetrics,
 	confRules []rules.Rule,
-	hostTags []string,
+	groupTags []string,
 	notifierMap map[string]notifications.Notifier,
 ) {
 	interval, err := time.ParseDuration(checkConfig.Interval)
@@ -108,7 +108,6 @@ func monitorHost(
 		logger.Fatal(err)
 	}
 
-	address := fmt.Sprintf("%s:%s", host, checkConfig.Port)
 	checker, err := checkers.NewChecker(checkConfig.Protocol)
 	if err != nil {
 		logger.Fatal(err)
@@ -123,26 +122,45 @@ func monitorHost(
 			return
 		default:
 			checkStart := time.Now()
-			checkCtx, checkCancel := context.WithTimeout(ctx, 10*time.Second)
-			result := checker.Check(checkCtx, address)
-			checkCancel()
 
-			logCheckResult(logger, site, host, checkConfig, result.Success, result.Error, result.ResponseTime, hostTags)
+			var totalResponseTime time.Duration
+			allDown := true
+			successfulChecks := 0
 
-			promMetricsEndpoint.Update(
+			for _, host := range group.Hosts {
+				address := fmt.Sprintf("%s:%s", host.Host, checkConfig.Port)
+				checkCtx, checkCancel := context.WithTimeout(ctx, 10*time.Second)
+				result := checker.Check(checkCtx, address)
+				checkCancel()
+
+				if result.Success {
+					allDown = false
+					totalResponseTime += result.ResponseTime
+					successfulChecks++
+				}
+
+				logCheckResult(logger, site, group.Name, host.Host, checkConfig, result.Success, result.Error, result.ResponseTime, groupTags)
+			}
+
+			var avgResponseTime time.Duration
+			if successfulChecks > 0 {
+				avgResponseTime = totalResponseTime / time.Duration(successfulChecks)
+			}
+
+			promMetricsEndpoint.UpdateGroup(
 				site,
-				host,
+				group.Name,
 				checkConfig.Port,
 				string(checkConfig.Protocol),
-				hostTags,
-				result.Success,
-				result.ResponseTime,
+				groupTags,
+				!allDown,
+				avgResponseTime,
 			)
 
-			downtime = updateDowntime(downtime, interval, result.Success)
+			downtime = updateDowntime(downtime, interval, !allDown)
 
 			for _, rule := range confRules {
-				if !hasMatchingTags(hostTags, rule.Tags) {
+				if !hasMatchingTags(groupTags, rule.Tags) {
 					continue
 				}
 
@@ -150,13 +168,14 @@ func monitorHost(
 					continue
 				}
 
-				ruleResult := rules.EvaluateRule(rule, downtime, result.ResponseTime)
+				ruleResult := rules.EvaluateRule(rule, downtime, avgResponseTime)
 				if ruleResult.Error != nil || ruleResult.Satisfied {
 					notification := notifications.Notification{
 						Message:  buildNotificationMessage(rule, ruleResult),
 						Level:    getNotificationLevel(ruleResult),
-						Tags:     hostTags,
-						Host:     host,
+						Tags:     groupTags,
+						Site:     site,
+						Group:    group.Name,
 						Port:     checkConfig.Port,
 						Protocol: string(checkConfig.Protocol),
 					}
@@ -214,16 +233,16 @@ func initLogger() *zap.SugaredLogger {
 	return zapL.Sugar()
 }
 
-func logCheckResult(logger *zap.SugaredLogger, site string, host string, checkConfig config.CheckConfig, success bool, err error, elapsed time.Duration, tags []string) {
+func logCheckResult(logger *zap.SugaredLogger, site string, group string, host string, checkConfig config.CheckConfig, success bool, err error, elapsed time.Duration, tags []string) {
 	l := logger.With(
 		"site", site,
+		"group", group,
 		"host", host,
 		"port", checkConfig.Port,
 		"protocol", checkConfig.Protocol,
 		"responseTime_us", elapsed,
 		"success", success,
 		"tags", tags,
-		"portTags", checkConfig.Tags,
 	)
 
 	switch {

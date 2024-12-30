@@ -20,6 +20,8 @@ func NewLogNotifier(logger *zap.SugaredLogger) *LogNotifier {
 func (n *LogNotifier) SendNotification(ctx context.Context, notification Notification) error {
 	n.logger.With(
 		"level", notification.Level,
+		"site", notification.Site,
+		"group", notification.Group,
 		"host", notification.Host,
 		"port", notification.Port,
 		"protocol", notification.Protocol,

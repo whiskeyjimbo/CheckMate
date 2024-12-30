@@ -27,10 +27,17 @@ type NotificationConfig struct {
 	Type string `yaml:"type"`
 }
 
+type GroupConfig struct {
+	Name   string        `yaml:"name"`
+	Tags   []string      `yaml:"tags"`
+	Hosts  []HostConfig  `yaml:"hosts"`
+	Checks []CheckConfig `yaml:"checks"`
+}
+
 type SiteConfig struct {
-	Name  string       `yaml:"name"`
-	Tags  []string     `yaml:"tags"`
-	Hosts []HostConfig `yaml:"hosts"`
+	Name   string        `yaml:"name"`
+	Tags   []string      `yaml:"tags"`
+	Groups []GroupConfig `yaml:"groups"`
 }
 
 type Config struct {
@@ -51,7 +58,7 @@ func loadConfig(configFile string) (*Config, error) {
 	}
 
 	for _, site := range config.Sites {
-		for _, host := range site.Hosts {
+		for _, host := range site.Groups {
 			for i := range host.Checks {
 				normalizeConfig(&host.Checks[i])
 			}

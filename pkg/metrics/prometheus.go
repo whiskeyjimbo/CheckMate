@@ -18,6 +18,8 @@ const (
 )
 
 type MetricLabels struct {
+	Site     string
+	Group    string
 	Host     string
 	Port     string
 	Protocol string
@@ -61,7 +63,28 @@ func (p *PrometheusMetrics) Update(
 	responseTime time.Duration,
 ) {
 	labels := MetricLabels{
+		Site:     site,
+		Group:    "",
 		Host:     host,
+		Port:     port,
+		Protocol: protocol,
+	}
+	p.updateMetrics(labels, tags, success, responseTime)
+}
+
+func (p *PrometheusMetrics) UpdateGroup(
+	site string,
+	group string,
+	port string,
+	protocol string,
+	tags []string,
+	success bool,
+	responseTime time.Duration,
+) {
+	labels := MetricLabels{
+		Site:     site,
+		Group:    group,
+		Host:     "",
 		Port:     port,
 		Protocol: protocol,
 	}
@@ -74,7 +97,7 @@ func (p *PrometheusMetrics) updateMetrics(labels MetricLabels, tags []string, su
 		tagString = "none"
 	}
 
-	labelValues := []string{labels.Host, labels.Port, labels.Protocol, tagString}
+	labelValues := []string{labels.Site, labels.Group, labels.Host, labels.Port, labels.Protocol, tagString}
 
 	statusValue := 0.0
 	if success {
@@ -88,6 +111,8 @@ func (p *PrometheusMetrics) updateMetrics(labels MetricLabels, tags []string, su
 	p.checkLatencyHistogram.WithLabelValues(labelValues...).Observe(latencyMs)
 
 	p.logger.Debugw("Updated metrics",
+		"site", labels.Site,
+		"group", labels.Group,
 		"host", labels.Host,
 		"port", labels.Port,
 		"protocol", labels.Protocol,
@@ -104,7 +129,7 @@ func createStatusGauge() *prometheus.GaugeVec {
 			Name:      "check_success",
 			Help:      "Status of the check (1 for success, 0 for failure)",
 		},
-		[]string{"host", "port", "protocol", "tags"},
+		[]string{"site", "group", "host", "port", "protocol", "tags"},
 	)
 }
 
@@ -115,7 +140,7 @@ func createLatencyGauge() *prometheus.GaugeVec {
 			Name:      "check_latency_milliseconds",
 			Help:      "Gauge of the check duration in milliseconds",
 		},
-		[]string{"host", "port", "protocol", "tags"},
+		[]string{"site", "group", "host", "port", "protocol", "tags"},
 	)
 }
 
@@ -127,6 +152,6 @@ func createLatencyHistogram() *prometheus.HistogramVec {
 			Help:      "Histogram of the check duration in milliseconds",
 			Buckets:   prometheus.DefBuckets,
 		},
-		[]string{"host", "port", "protocol", "tags"},
+		[]string{"site", "group", "host", "port", "protocol", "tags"},
 	)
 }

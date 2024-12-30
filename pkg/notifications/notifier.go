@@ -27,6 +27,8 @@ type Notification struct {
 	Message  string
 	Level    NotificationLevel
 	Tags     []string
+	Site     string
+	Group    string
 	Host     string
 	Port     string
 	Protocol string
