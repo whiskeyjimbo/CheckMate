@@ -105,6 +105,36 @@ notifications:
   - `protocol`: One of: TCP, HTTP, SMTP, DNS
   - `interval`: Check frequency (e.g., "30s", "1m")
   - `tags`: Additional tags specific to this check
+- `ruleMode`: How rules are evaluated for this group (optional)
+  - `all`: Only fire rules when all hosts are down (default)
+  - `any`: Fire rules when any host in the group is down
+
+Example configuration with different rule modes:
+```yaml
+sites:
+  - name: "production"
+    tags: ["prod"]
+    groups:
+      - name: "critical-service"
+        ruleMode: "all"    # Only alert if ALL hosts are down
+        hosts:
+          - host: "primary.example.com"
+          - host: "secondary.example.com"
+        checks:
+          - port: "443"
+            protocol: HTTPS
+            interval: "30s"
+
+      - name: "monitoring-service"
+        ruleMode: "any"    # Alert if ANY host is down
+        hosts:
+          - host: "monitor1.example.com"
+          - host: "monitor2.example.com"
+        checks:
+          - port: "8080"
+            protocol: HTTP
+            interval: "1m"
+```
 
 ### Host Configuration
 - `host`: The hostname or IP to monitor
@@ -123,11 +153,35 @@ notifications:
 
 ## High Availability Monitoring
 
-Groups support high availability monitoring:
-- A group is considered "up" if any host in the group is responding
+Groups support high availability monitoring with configurable rule modes:
+
+### All Mode (Default)
+- Group is considered "up" if any host is responding
+- Rules only trigger when all hosts are down
+- Ideal for redundant services where one available host is sufficient
+
+### Any Mode
+- Group monitoring tracks all hosts individually
+- Rules trigger when any host goes down
+- Suitable for services where each host's availability is critical
+
+In both modes:
 - Response times are averaged across all successful checks in the group
 - Metrics are tracked at both host and group levels
 - Prometheus histograms are used for latency tracking
+- Notifications include the number of available hosts
+
+Example Prometheus queries for HA monitoring:
+```promql
+# Count of available hosts in each group
+count(checkmate_check_success{group="api-service"} == 1) by (site, group)
+
+# Groups with all hosts down
+count(checkmate_check_success{} == 0) by (site, group)
+
+# Average response time across all hosts in a group
+avg(checkmate_check_latency_milliseconds) by (site, group)
+```
 
 ## Metrics
 

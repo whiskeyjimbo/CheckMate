@@ -27,11 +27,30 @@ type NotificationConfig struct {
 	Type string `yaml:"type"`
 }
 
+type RuleMode string
+
+const (
+	RuleModeAll RuleMode = "all" // Fire rules only if all hosts are down (default)
+	RuleModeAny RuleMode = "any" // Fire rules if any host is down
+)
+
 type GroupConfig struct {
-	Name   string        `yaml:"name"`
-	Tags   []string      `yaml:"tags"`
-	Hosts  []HostConfig  `yaml:"hosts"`
-	Checks []CheckConfig `yaml:"checks"`
+	Name     string        `yaml:"name"`
+	Tags     []string      `yaml:"tags"`
+	Hosts    []HostConfig  `yaml:"hosts"`
+	Checks   []CheckConfig `yaml:"checks"`
+	RuleMode RuleMode      `yaml:"ruleMode,omitempty"`
+}
+
+func (g *GroupConfig) Validate() error {
+	if g.RuleMode == "" {
+		g.RuleMode = RuleModeAll
+	}
+
+	if g.RuleMode != RuleModeAll && g.RuleMode != RuleModeAny {
+		return fmt.Errorf("invalid rule mode: %s", g.RuleMode)
+	}
+	return nil
 }
 
 type SiteConfig struct {

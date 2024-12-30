@@ -125,7 +125,16 @@ func monitorGroup(
 
 			var totalResponseTime time.Duration
 			allDown := true
+			anyDown := false
 			successfulChecks := 0
+			totalHosts := len(group.Hosts)
+
+			type hostResult struct {
+				success      bool
+				responseTime time.Duration
+				err          error
+			}
+			hostResults := make(map[string]hostResult)
 
 			for _, host := range group.Hosts {
 				address := fmt.Sprintf("%s:%s", host.Host, checkConfig.Port)
@@ -133,10 +142,18 @@ func monitorGroup(
 				result := checker.Check(checkCtx, address)
 				checkCancel()
 
+				hostResults[host.Host] = hostResult{
+					success:      result.Success,
+					responseTime: result.ResponseTime,
+					err:          result.Error,
+				}
+
 				if result.Success {
 					allDown = false
 					totalResponseTime += result.ResponseTime
 					successfulChecks++
+				} else {
+					anyDown = true
 				}
 
 				logCheckResult(logger, site, group.Name, host.Host, checkConfig, result.Success, result.Error, result.ResponseTime, groupTags)
@@ -157,7 +174,15 @@ func monitorGroup(
 				avgResponseTime,
 			)
 
-			downtime = updateDowntime(downtime, interval, !allDown)
+			shouldUpdateDowntime := false
+			switch group.RuleMode {
+			case config.RuleModeAny:
+				shouldUpdateDowntime = anyDown
+			default:
+				shouldUpdateDowntime = allDown
+			}
+
+			downtime = updateDowntime(downtime, interval, !shouldUpdateDowntime)
 
 			for _, rule := range confRules {
 				if !hasMatchingTags(groupTags, rule.Tags) {
@@ -171,7 +196,7 @@ func monitorGroup(
 				ruleResult := rules.EvaluateRule(rule, downtime, avgResponseTime)
 				if ruleResult.Error != nil || ruleResult.Satisfied {
 					notification := notifications.Notification{
-						Message:  buildNotificationMessage(rule, ruleResult),
+						Message:  buildNotificationMessage(rule, ruleResult, group.RuleMode, successfulChecks, totalHosts),
 						Level:    getNotificationLevel(ruleResult),
 						Tags:     groupTags,
 						Site:     site,
@@ -189,11 +214,24 @@ func monitorGroup(
 	}
 }
 
-func buildNotificationMessage(rule rules.Rule, result rules.RuleResult) string {
+func buildNotificationMessage(rule rules.Rule, result rules.RuleResult, mode config.RuleMode, successfulChecks, totalHosts int) string {
 	if result.Error != nil {
 		return fmt.Sprintf("Rule evaluation failed: %v", result.Error)
 	}
-	return fmt.Sprintf("Rule condition met: %s", rule.Name)
+
+	var modeInfo string
+	switch mode {
+	case config.RuleModeAny:
+		modeInfo = fmt.Sprintf(" (%d/%d hosts up)", successfulChecks, totalHosts)
+	case config.RuleModeAll:
+		if successfulChecks == 0 {
+			modeInfo = " (all hosts down)"
+		} else {
+			modeInfo = fmt.Sprintf(" (%d/%d hosts up)", successfulChecks, totalHosts)
+		}
+	}
+
+	return fmt.Sprintf("Rule condition met: %s%s", rule.Name, modeInfo)
 }
 
 func getNotificationLevel(result rules.RuleResult) notifications.NotificationLevel {
