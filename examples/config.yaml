@@ -1,0 +1,54 @@
+sites:
+  - name: "mars-lab"
+    tags: ["region-mars", "prod"]
+    groups:
+      - name: "api-service.dev.com"
+        tags: ["prod"]
+        hosts:
+          - host: "127.0.0.1"
+            tags: ["primary"]
+          - host: "localhost2"
+            tags: ["secondary"]
+        checks:
+          - port: "800"
+            protocol: HTTP
+            interval: 10s
+            tags: ["api"]
+          - port: "22"
+            protocol: TCP
+            interval: 10s
+            tags: ["ssh"]
+  # - name: "pluto-prod"
+  #   tags: ["region-pluto", "prod"]
+  #   domains:
+  #     - name: "api-service.prod.com"
+  #       tags: ["prod"]
+  #       hosts:
+  #         - host: "127.0.0.1"
+  #           tags: ["primary"]
+  #         - host: "localhost2"
+  #           tags: ["secondary"]
+  #       checks:
+  #         - port: "800"
+  #           protocol: HTTP
+  #           interval: 10s
+  #           tags: ["api"]
+  #         - port: "22"
+  #           protocol: TCP
+  #           interval: 10s
+  #           tags: ["ssh"]
+rules:
+  - name: high_latency_warning
+    condition: "responseTime > 1ms"
+    tags: ["prod"]
+    notifications: ["log"]  # This rule only sends log notifications
+  - name: critical_downtime_prod
+    condition: "downtime > 15s"
+    tags: ["prod"]
+    notifications: ["log"]  # This rule would use both (when slack is implemented)
+  - name: critical_downtime_SSH
+    condition: "downtime > 10s"
+    tags: ["ssh"]
+    notifications: ["log"]  # This rule would use both (when slack is implemented)
+notifications:
+  - type: "log"    # Currently the only implemented type
