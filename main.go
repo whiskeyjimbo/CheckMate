@@ -36,7 +36,7 @@ type MonitorDependencies struct {
 	Logger    *zap.SugaredLogger
 	Metrics   *metrics.PrometheusMetrics
 	Rules     []rules.Rule
-	Notifiers map[string]notifications.Notifier
+	Notifiers *map[string]notifications.Notifier
 }
 
 type CheckResult struct {
@@ -61,16 +61,24 @@ func main() {
 
 	notifierMap := make(map[string]notifications.Notifier)
 
-	for _, n := range config.Notifications {
-		notifier, err := notifications.NewNotifier(n.Type, logger)
-		if err != nil {
+	if len(config.Notifications) == 0 {
+		logNotifier := notifications.NewLogNotifier(logger)
+		if err := logNotifier.Initialize(ctx); err != nil {
 			logger.Fatal(err)
 		}
-		if err := notifier.Initialize(ctx); err != nil {
-			logger.Fatal(err)
+		notifierMap[string(notifications.LogNotification)] = logNotifier
+	} else {
+		for _, n := range config.Notifications {
+			notifier, err := notifications.NewNotifier(n.Type, logger)
+			if err != nil {
+				logger.Fatal(err)
+			}
+			if err := notifier.Initialize(ctx); err != nil {
+				logger.Fatal(err)
+			}
+			notifierMap[n.Type] = notifier
+			defer notifier.Close()
 		}
-		defer notifier.Close()
-		notifierMap[n.Type] = notifier
 	}
 
 	metrics.StartMetricsServer(logger)
@@ -82,7 +90,7 @@ func main() {
 		Logger:    logger,
 		Metrics:   metrics.NewPrometheusMetrics(logger),
 		Rules:     config.Rules,
-		Notifiers: notifierMap,
+		Notifiers: &notifierMap,
 	}, config)
 
 	waitForShutdown(logger, cancel, &wg)
@@ -98,7 +106,10 @@ func startMonitoring(
 		for _, group := range site.Groups {
 			for _, checkConfig := range group.Checks {
 				wg.Add(1)
-				combinedTags := deduplicateTags(append(append(site.Tags, group.Tags...), checkConfig.Tags...))
+				combinedTags := deduplicateTags(append(append(append([]string{},
+					site.Tags...),
+					group.Tags...),
+					checkConfig.Tags...))
 
 				monCtx := MonitorContext{
 					Site:  site.Name,
@@ -172,39 +183,48 @@ func processResults(hostResults map[string]hostResult) (time.Duration, bool, boo
 
 func evaluateRules(
 	ctx context.Context,
-	confRules []rules.Rule,
-	groupTags []string,
+	monCtx MonitorContext,
+	deps MonitorDependencies,
 	lastRuleEval map[string]time.Time,
 	downtime time.Duration,
 	avgResponseTime time.Duration,
-	ruleMode config.RuleMode,
-	successfulChecks, totalHosts int,
-	site string,
-	group string,
-	checkConfig config.CheckConfig,
-	notifierMap map[string]notifications.Notifier,
+	result CheckResult,
 ) {
-	for _, rule := range confRules {
-		if !hasMatchingTags(groupTags, rule.Tags) {
+	combinedTags := deduplicateTags(append(append([]string{},
+		monCtx.Tags...),
+		monCtx.Check.Tags...))
+
+	for _, rule := range deps.Rules {
+		if !hasMatchingTags(combinedTags, rule.Tags) {
+			deps.Logger.Debugf("Skipping rule %s because it does not match any tags"+
+				"\nAvailable tags: %v"+
+				"\nCheck tags: %v"+
+				"\nRule tags: %v",
+				rule.Name,
+				monCtx.Tags,
+				monCtx.Check.Tags,
+				rule.Tags)
 			continue
 		}
 
-		if time.Since(lastRuleEval[rule.Name]) < time.Minute {
+		if time.Since(lastRuleEval[rule.Name]) < time.Second*15 {
+			deps.Logger.Debugf("Skipping rule %s because it was last evaluated less than 15 seconds ago", rule.Name)
 			continue
 		}
 
 		ruleResult := rules.EvaluateRule(rule, downtime, avgResponseTime)
 		if ruleResult.Error != nil || ruleResult.Satisfied {
+			deps.Logger.Debugf("Rule %s satisfied", rule.Name)
 			notification := notifications.Notification{
-				Message:  buildNotificationMessage(rule, ruleResult, ruleMode, successfulChecks, totalHosts),
+				Message:  buildNotificationMessage(rule, ruleResult, monCtx.Group.RuleMode, result.SuccessfulChecks, result.TotalHosts),
 				Level:    getNotificationLevel(ruleResult),
-				Tags:     groupTags,
-				Site:     site,
-				Group:    group,
-				Port:     checkConfig.Port,
-				Protocol: string(checkConfig.Protocol),
+				Tags:     monCtx.Tags,
+				Site:     monCtx.Site,
+				Group:    monCtx.Group.Name,
+				Port:     monCtx.Check.Port,
+				Protocol: string(monCtx.Check.Protocol),
 			}
-			sendRuleNotifications(ctx, rule, notification, notifierMap)
+			sendRuleNotifications(ctx, rule, notification, *deps.Notifiers)
 		}
 		lastRuleEval[rule.Name] = time.Now()
 	}
@@ -220,9 +240,11 @@ func processGroupCheck(
 
 	totalResponseTime, allDown, anyDown, successfulChecks := processResults(hostResults)
 
+	combinedTags := deduplicateTags(append(monCtx.Tags, monCtx.Check.Tags...))
+
 	for host, result := range hostResults {
 		logCheckResult(deps.Logger, monCtx.Site, monCtx.Group.Name, host,
-			monCtx.Check, result.success, result.err, result.responseTime, monCtx.Tags)
+			monCtx.Check, result.success, result.err, result.responseTime, combinedTags)
 	}
 
 	return CheckResult{
@@ -289,10 +311,7 @@ func monitorGroup(
 				deps.Metrics,
 			)
 
-			evaluateRules(ctx, deps.Rules, monCtx.Tags, lastRuleEval,
-				downtime, avgResponseTime, monCtx.Group.RuleMode,
-				result.SuccessfulChecks, result.TotalHosts, monCtx.Site,
-				monCtx.Group.Name, monCtx.Check, deps.Notifiers)
+			evaluateRules(ctx, monCtx, deps, lastRuleEval, downtime, avgResponseTime, result)
 
 			sleepUntilNextCheck(interval, time.Since(checkStart))
 		}
@@ -347,7 +366,11 @@ func sendRuleNotifications(
 }
 
 func initLogger() *zap.SugaredLogger {
-	zapL, err := zap.NewProduction()
+	config := zap.NewDevelopmentConfig()
+	config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+
+	zapL, err := config.Build()
+	// zapL, err := zap.NewProduction()
 	if err != nil {
 		fmt.Printf("Failed to initialize logger: %v\n", err)
 		os.Exit(1)
@@ -366,13 +389,14 @@ func logCheckResult(logger *zap.SugaredLogger, site string, group string, host s
 		"responseTime_us", elapsed,
 		"success", success,
 		"tags", tags,
+		"portTags", checkConfig.Tags,
 	)
 
 	switch {
 	case err != nil:
 		l.Warn(err)
 	case success:
-		l.Info("Check succeeded")
+		// l.Info("Check succeeded")
 	default:
 		l.Error("Unknown failure")
 	}
