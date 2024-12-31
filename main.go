@@ -25,6 +25,28 @@ type hostResult struct {
 	err          error
 }
 
+type MonitorContext struct {
+	Site  string
+	Group config.GroupConfig
+	Check config.CheckConfig
+	Tags  []string
+}
+
+type MonitorDependencies struct {
+	Logger    *zap.SugaredLogger
+	Metrics   *metrics.PrometheusMetrics
+	Rules     []rules.Rule
+	Notifiers map[string]notifications.Notifier
+}
+
+type CheckResult struct {
+	TotalResponseTime time.Duration
+	AllDown           bool
+	AnyDown           bool
+	SuccessfulChecks  int
+	TotalHosts        int
+}
+
 func main() {
 	logger := initLogger()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -56,7 +78,12 @@ func main() {
 	health.SetReady(true)
 
 	var wg sync.WaitGroup
-	startMonitoring(ctx, &wg, logger, config, metrics.NewPrometheusMetrics(logger), notifierMap)
+	startMonitoring(ctx, &wg, MonitorDependencies{
+		Logger:    logger,
+		Metrics:   metrics.NewPrometheusMetrics(logger),
+		Rules:     config.Rules,
+		Notifiers: notifierMap,
+	}, config)
 
 	waitForShutdown(logger, cancel, &wg)
 }
@@ -64,10 +91,8 @@ func main() {
 func startMonitoring(
 	ctx context.Context,
 	wg *sync.WaitGroup,
-	logger *zap.SugaredLogger,
+	deps MonitorDependencies,
 	cfg *config.Config,
-	metrics *metrics.PrometheusMetrics,
-	notifierMap map[string]notifications.Notifier,
 ) {
 	for _, site := range cfg.Sites {
 		for _, group := range site.Groups {
@@ -75,10 +100,17 @@ func startMonitoring(
 				wg.Add(1)
 				combinedTags := deduplicateTags(append(append(site.Tags, group.Tags...), checkConfig.Tags...))
 
-				go func(site string, group config.GroupConfig, check config.CheckConfig, tags []string) {
+				monCtx := MonitorContext{
+					Site:  site.Name,
+					Group: group,
+					Check: checkConfig,
+					Tags:  combinedTags,
+				}
+
+				go func(mctx MonitorContext) {
 					defer wg.Done()
-					monitorGroup(ctx, logger, site, group, check, metrics, cfg.Rules, tags, notifierMap)
-				}(site.Name, group, checkConfig, combinedTags)
+					monitorGroup(ctx, mctx, deps)
+				}(monCtx)
 			}
 		}
 	}
@@ -180,22 +212,26 @@ func evaluateRules(
 
 func processGroupCheck(
 	ctx context.Context,
-	logger *zap.SugaredLogger,
-	site string,
-	group config.GroupConfig,
-	checkConfig config.CheckConfig,
+	monCtx MonitorContext,
+	deps MonitorDependencies,
 	checker checkers.Checker,
-	groupTags []string,
-) (time.Duration, bool, bool, int, int) {
-	hostResults := performHostChecks(ctx, checker, group.Hosts, checkConfig)
+) CheckResult {
+	hostResults := performHostChecks(ctx, checker, monCtx.Group.Hosts, monCtx.Check)
 
 	totalResponseTime, allDown, anyDown, successfulChecks := processResults(hostResults)
 
 	for host, result := range hostResults {
-		logCheckResult(logger, site, group.Name, host, checkConfig, result.success, result.err, result.responseTime, groupTags)
+		logCheckResult(deps.Logger, monCtx.Site, monCtx.Group.Name, host,
+			monCtx.Check, result.success, result.err, result.responseTime, monCtx.Tags)
 	}
 
-	return totalResponseTime, allDown, anyDown, successfulChecks, len(group.Hosts)
+	return CheckResult{
+		TotalResponseTime: totalResponseTime,
+		AllDown:           allDown,
+		AnyDown:           anyDown,
+		SuccessfulChecks:  successfulChecks,
+		TotalHosts:        len(monCtx.Group.Hosts),
+	}
 }
 
 func updateMetricsAndDowntime(
@@ -223,23 +259,17 @@ func updateMetricsAndDowntime(
 
 func monitorGroup(
 	ctx context.Context,
-	logger *zap.SugaredLogger,
-	site string,
-	group config.GroupConfig,
-	checkConfig config.CheckConfig,
-	promMetricsEndpoint *metrics.PrometheusMetrics,
-	confRules []rules.Rule,
-	groupTags []string,
-	notifierMap map[string]notifications.Notifier,
+	monCtx MonitorContext,
+	deps MonitorDependencies,
 ) {
-	interval, err := time.ParseDuration(checkConfig.Interval)
+	interval, err := time.ParseDuration(monCtx.Check.Interval)
 	if err != nil {
-		logger.Fatal(err)
+		deps.Logger.Fatal(err)
 	}
 
-	checker, err := checkers.NewChecker(checkConfig.Protocol)
+	checker, err := checkers.NewChecker(monCtx.Check.Protocol)
 	if err != nil {
-		logger.Fatal(err)
+		deps.Logger.Fatal(err)
 	}
 
 	lastRuleEval := make(map[string]time.Time)
@@ -251,22 +281,18 @@ func monitorGroup(
 		default:
 			checkStart := time.Now()
 
-			totalResponseTime, allDown, anyDown, successfulChecks, totalHosts := processGroupCheck(
-				ctx, logger, site, group, checkConfig, checker, groupTags,
-			)
+			result := processGroupCheck(ctx, monCtx, deps, checker)
 
 			avgResponseTime, downtime := updateMetricsAndDowntime(
-				totalResponseTime, allDown, anyDown, successfulChecks,
-				interval, group, site, checkConfig, groupTags,
-				promMetricsEndpoint,
+				result.TotalResponseTime, result.AllDown, result.AnyDown,
+				result.SuccessfulChecks, interval, monCtx.Group, monCtx.Site, monCtx.Check, monCtx.Tags,
+				deps.Metrics,
 			)
 
-			evaluateRules(
-				ctx, confRules, groupTags, lastRuleEval,
-				downtime, avgResponseTime, group.RuleMode,
-				successfulChecks, totalHosts, site,
-				group.Name, checkConfig, notifierMap,
-			)
+			evaluateRules(ctx, deps.Rules, monCtx.Tags, lastRuleEval,
+				downtime, avgResponseTime, monCtx.Group.RuleMode,
+				result.SuccessfulChecks, result.TotalHosts, monCtx.Site,
+				monCtx.Group.Name, monCtx.Check, deps.Notifiers)
 
 			sleepUntilNextCheck(interval, time.Since(checkStart))
 		}
