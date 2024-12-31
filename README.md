@@ -12,7 +12,7 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 ### Core Features
 - Multi-protocol support (TCP, HTTP, SMTP, DNS)
 - Hierarchical configuration (Sites → Groups → Hosts → Checks)
-- High availability group monitoring
+- Group monitoring
 - Configurable check intervals per service
 - Prometheus metrics integration
 - Rule-based monitoring with custom conditions
@@ -21,12 +21,11 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 ### Metrics & Monitoring
 - Service availability status
 - Response time measurements
-- Rule-based alerting with customizable conditions
 - Prometheus-compatible metrics endpoint
 - Downtime tracking
 - Latency histograms and gauges
 
-### Technical Features
+### Other Features
 - YAML-based configuration
 - Modular architecture for easy extension using interfaces
 - Site-based infrastructure organization
@@ -52,7 +51,8 @@ make run config.yaml ## see configuration below for more details
 
 ## Configuration
 
-CheckMate is configured using a YAML (default: ./config.yaml) file. Here's a complete example:
+CheckMate is configured using a YAML (default: ./config.yaml) file. 
+Example configuration:
 
 ```yaml
 sites:
@@ -100,6 +100,8 @@ notifications:
 - `name`: The group identifier
 - `tags`: Additional tags specific to this group (combined with site tags)
 - `hosts`: List of hosts in this group
+  - `host`: The hostname or IP to monitor
+  - `tags`: Additional tags specific to this host
 - `checks`: List of service checks applied to all hosts
   - `port`: Port number to check
   - `protocol`: One of: TCP, HTTP, SMTP, DNS
@@ -110,41 +112,6 @@ notifications:
   - `all`: Only fire rules when all hosts are down (default)
   - `any`: Fire rules when any host in the group is down
 
-Example configuration with different rule modes:
-```yaml
-sites:
-  - name: "production"
-    tags: ["prod"]
-    groups:
-      - name: "critical-service"
-        ruleMode: "all"    # Only alert if ALL hosts are down
-        hosts:
-          - host: "primary.example.com"
-          - host: "secondary.example.com"
-        checks:
-          - port: "443"
-            protocol: HTTPS
-            interval: "30s"
-          - port: "8080"
-            protocol: HTTP
-            interval: "30s"
-            ruleMode: "any"    # Override: Alert if ANY host fails this check
-
-      - name: "monitoring-service"
-        ruleMode: "any"    # Alert if ANY host is down
-        hosts:
-          - host: "monitor1.example.com"
-          - host: "monitor2.example.com"
-        checks:
-          - port: "8080"
-            protocol: HTTP
-            interval: "1m"
-```
-
-### Host Configuration
-- `host`: The hostname or IP to monitor
-- `tags`: Additional tags specific to this host
-
 ### Rule Configuration
 - `name`: Unique rule identifier
 - `condition`: Expression to evaluate (uses responseTime and downtime variables)
@@ -154,7 +121,6 @@ sites:
 
 ### Notification Configuration
 - `type`: Type of notification ("log", with more coming soon)
-- Each notification type can have its own configuration options
 
 ## High Availability Monitoring
 
@@ -172,7 +138,7 @@ Groups support high availability monitoring with configurable rule modes at both
 - Can be set at check level to override group settings
 
 In both modes:
-- Response times are averaged across all successful checks in the group
+- Response times are averaged across all successful checks in the group (think i will change this later to use host level metrics..)
 - Metrics are tracked at both host and group levels
 - Prometheus histograms are used for latency tracking
 - Notifications include specific failing hosts
