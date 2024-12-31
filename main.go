@@ -19,6 +19,30 @@ import (
 	"go.uber.org/zap"
 )
 
+type MonitoringContext struct {
+	Ctx         context.Context
+	Logger      *zap.SugaredLogger
+	Site        string
+	Group       config.GroupConfig
+	Check       config.CheckConfig
+	Metrics     *metrics.PrometheusMetrics
+	Rules       []rules.Rule
+	Tags        []string
+	NotifierMap map[string]notifications.Notifier
+}
+
+type CheckContext struct {
+	Logger      *zap.SugaredLogger
+	Site        string
+	Group       string
+	Host        string
+	CheckConfig config.CheckConfig
+	Success     bool
+	Error       error
+	Elapsed     time.Duration
+	Tags        []string
+}
+
 func main() {
 	logger := initLogger()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -71,7 +95,18 @@ func startMonitoring(
 
 				go func(site string, group config.GroupConfig, check config.CheckConfig, tags []string) {
 					defer wg.Done()
-					monitorGroup(ctx, logger, site, group, check, metrics, cfg.Rules, tags, notifierMap)
+					mc := MonitoringContext{
+						Ctx:         ctx,
+						Logger:      logger,
+						Site:        site,
+						Group:       group,
+						Check:       check,
+						Metrics:     metrics,
+						Rules:       cfg.Rules,
+						Tags:        tags,
+						NotifierMap: notifierMap,
+					}
+					monitorGroup(mc)
 				}(site.Name, group, checkConfig, combinedTags)
 			}
 		}
@@ -92,25 +127,15 @@ func deduplicateTags(tags []string) []string {
 }
 
 // TODO: getting pretty large, need to break up
-func monitorGroup(
-	ctx context.Context,
-	logger *zap.SugaredLogger,
-	site string,
-	group config.GroupConfig,
-	checkConfig config.CheckConfig,
-	promMetricsEndpoint *metrics.PrometheusMetrics,
-	confRules []rules.Rule,
-	groupTags []string,
-	notifierMap map[string]notifications.Notifier,
-) {
-	interval, err := time.ParseDuration(checkConfig.Interval)
+func monitorGroup(mc MonitoringContext) {
+	interval, err := time.ParseDuration(mc.Check.Interval)
 	if err != nil {
-		logger.Fatal(err)
+		mc.Logger.Fatal(err)
 	}
 
-	checker, err := checkers.NewChecker(checkConfig.Protocol)
+	checker, err := checkers.NewChecker(mc.Check.Protocol)
 	if err != nil {
-		logger.Fatal(err)
+		mc.Logger.Fatal(err)
 	}
 
 	var downtime time.Duration
@@ -118,7 +143,7 @@ func monitorGroup(
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-mc.Ctx.Done():
 			return
 		default:
 			checkStart := time.Now()
@@ -127,7 +152,7 @@ func monitorGroup(
 			allDown := true
 			anyDown := false
 			successfulChecks := 0
-			totalHosts := len(group.Hosts)
+			totalHosts := len(mc.Group.Hosts)
 
 			type hostResult struct {
 				success      bool
@@ -136,9 +161,9 @@ func monitorGroup(
 			}
 			hostResults := make(map[string]hostResult)
 
-			for _, host := range group.Hosts {
-				address := fmt.Sprintf("%s:%s", host.Host, checkConfig.Port)
-				checkCtx, checkCancel := context.WithTimeout(ctx, 10*time.Second)
+			for _, host := range mc.Group.Hosts {
+				address := fmt.Sprintf("%s:%s", host.Host, mc.Check.Port)
+				checkCtx, checkCancel := context.WithTimeout(mc.Ctx, 10*time.Second)
 				result := checker.Check(checkCtx, address)
 				checkCancel()
 
@@ -156,7 +181,17 @@ func monitorGroup(
 					anyDown = true
 				}
 
-				logCheckResult(logger, site, group.Name, host.Host, checkConfig, result.Success, result.Error, result.ResponseTime, groupTags)
+				logCheckResult(CheckContext{
+					Logger:      mc.Logger,
+					Site:        mc.Site,
+					Group:       mc.Group.Name,
+					Host:        host.Host,
+					CheckConfig: mc.Check,
+					Success:     result.Success,
+					Error:       result.Error,
+					Elapsed:     result.ResponseTime,
+					Tags:        mc.Tags,
+				})
 			}
 
 			var avgResponseTime time.Duration
@@ -164,18 +199,18 @@ func monitorGroup(
 				avgResponseTime = totalResponseTime / time.Duration(successfulChecks)
 			}
 
-			promMetricsEndpoint.UpdateGroup(
-				site,
-				group.Name,
-				checkConfig.Port,
-				string(checkConfig.Protocol),
-				groupTags,
+			mc.Metrics.UpdateGroup(
+				mc.Site,
+				mc.Group.Name,
+				mc.Check.Port,
+				string(mc.Check.Protocol),
+				mc.Tags,
 				!allDown,
 				avgResponseTime,
 			)
 
 			shouldUpdateDowntime := false
-			switch group.RuleMode {
+			switch mc.Group.RuleMode {
 			case config.RuleModeAny:
 				shouldUpdateDowntime = anyDown
 			default:
@@ -184,8 +219,8 @@ func monitorGroup(
 
 			downtime = updateDowntime(downtime, interval, !shouldUpdateDowntime)
 
-			for _, rule := range confRules {
-				if !hasMatchingTags(groupTags, rule.Tags) {
+			for _, rule := range mc.Rules {
+				if !hasMatchingTags(mc.Tags, rule.Tags) {
 					continue
 				}
 
@@ -196,15 +231,15 @@ func monitorGroup(
 				ruleResult := rules.EvaluateRule(rule, downtime, avgResponseTime)
 				if ruleResult.Error != nil || ruleResult.Satisfied {
 					notification := notifications.Notification{
-						Message:  buildNotificationMessage(rule, ruleResult, group.RuleMode, successfulChecks, totalHosts),
+						Message:  buildNotificationMessage(rule, ruleResult, mc.Group.RuleMode, successfulChecks, totalHosts),
 						Level:    getNotificationLevel(ruleResult),
-						Tags:     groupTags,
-						Site:     site,
-						Group:    group.Name,
-						Port:     checkConfig.Port,
-						Protocol: string(checkConfig.Protocol),
+						Tags:     mc.Tags,
+						Site:     mc.Site,
+						Group:    mc.Group.Name,
+						Port:     mc.Check.Port,
+						Protocol: string(mc.Check.Protocol),
 					}
-					sendRuleNotifications(ctx, rule, notification, notifierMap)
+					sendRuleNotifications(mc.Ctx, rule, notification, mc.NotifierMap)
 				}
 				lastRuleEval[rule.Name] = time.Now()
 			}
@@ -271,22 +306,22 @@ func initLogger() *zap.SugaredLogger {
 	return zapL.Sugar()
 }
 
-func logCheckResult(logger *zap.SugaredLogger, site string, group string, host string, checkConfig config.CheckConfig, success bool, err error, elapsed time.Duration, tags []string) {
-	l := logger.With(
-		"site", site,
-		"group", group,
-		"host", host,
-		"port", checkConfig.Port,
-		"protocol", checkConfig.Protocol,
-		"responseTime_us", elapsed,
-		"success", success,
-		"tags", tags,
+func logCheckResult(ctx CheckContext) {
+	l := ctx.Logger.With(
+		"site", ctx.Site,
+		"group", ctx.Group,
+		"host", ctx.Host,
+		"port", ctx.CheckConfig.Port,
+		"protocol", ctx.CheckConfig.Protocol,
+		"responseTime_us", ctx.Elapsed,
+		"success", ctx.Success,
+		"tags", ctx.Tags,
 	)
 
 	switch {
-	case err != nil:
-		l.Warn(err)
-	case success:
+	case ctx.Error != nil:
+		l.Warn(ctx.Error)
+	case ctx.Success:
 		l.Info("Check succeeded")
 	default:
 		l.Error("Unknown failure")
