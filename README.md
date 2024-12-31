@@ -105,6 +105,7 @@ notifications:
   - `protocol`: One of: TCP, HTTP, SMTP, DNS
   - `interval`: Check frequency (e.g., "30s", "1m")
   - `tags`: Additional tags specific to this check
+  - `ruleMode`: Override group's rule mode for this specific check
 - `ruleMode`: How rules are evaluated for this group (optional)
   - `all`: Only fire rules when all hosts are down (default)
   - `any`: Fire rules when any host in the group is down
@@ -124,6 +125,10 @@ sites:
           - port: "443"
             protocol: HTTPS
             interval: "30s"
+          - port: "8080"
+            protocol: HTTP
+            interval: "30s"
+            ruleMode: "any"    # Override: Alert if ANY host fails this check
 
       - name: "monitoring-service"
         ruleMode: "any"    # Alert if ANY host is down
@@ -153,7 +158,7 @@ sites:
 
 ## High Availability Monitoring
 
-Groups support high availability monitoring with configurable rule modes:
+Groups support high availability monitoring with configurable rule modes at both group and check levels:
 
 ### All Mode (Default)
 - Group is considered "up" if any host is responding
@@ -164,12 +169,13 @@ Groups support high availability monitoring with configurable rule modes:
 - Group monitoring tracks all hosts individually
 - Rules trigger when any host goes down
 - Suitable for services where each host's availability is critical
+- Can be set at check level to override group settings
 
 In both modes:
 - Response times are averaged across all successful checks in the group
 - Metrics are tracked at both host and group levels
 - Prometheus histograms are used for latency tracking
-- Notifications include the number of available hosts
+- Notifications include specific failing hosts
 
 Example Prometheus queries for HA monitoring:
 ```promql

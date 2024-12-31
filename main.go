@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -141,6 +142,8 @@ func monitorGroup(mc MonitoringContext) {
 	var downtime time.Duration
 	lastRuleEval := make(map[string]time.Time)
 
+	ruleModeResolver := config.NewRuleModeResolver(mc.Group)
+
 	for {
 		select {
 		case <-mc.Ctx.Done():
@@ -209,15 +212,15 @@ func monitorGroup(mc MonitoringContext) {
 				avgResponseTime,
 			)
 
-			shouldUpdateDowntime := false
-			switch mc.Group.RuleMode {
-			case config.RuleModeAny:
-				shouldUpdateDowntime = anyDown
-			default:
-				shouldUpdateDowntime = allDown
-			}
-
+			shouldUpdateDowntime := ruleModeResolver.ShouldTrigger(anyDown, allDown, mc.Check)
 			downtime = updateDowntime(downtime, interval, !shouldUpdateDowntime)
+
+			var failingHosts []string
+			for host, result := range hostResults {
+				if !result.success {
+					failingHosts = append(failingHosts, host)
+				}
+			}
 
 			for _, rule := range mc.Rules {
 				if !hasMatchingTags(mc.Tags, rule.Tags) {
@@ -230,16 +233,37 @@ func monitorGroup(mc MonitoringContext) {
 
 				ruleResult := rules.EvaluateRule(rule, downtime, avgResponseTime)
 				if ruleResult.Error != nil || ruleResult.Satisfied {
-					notification := notifications.Notification{
-						Message:  buildNotificationMessage(rule, ruleResult, mc.Group.RuleMode, successfulChecks, totalHosts),
-						Level:    getNotificationLevel(ruleResult),
-						Tags:     mc.Tags,
-						Site:     mc.Site,
-						Group:    mc.Group.Name,
-						Port:     mc.Check.Port,
-						Protocol: string(mc.Check.Protocol),
+					effectiveMode := ruleModeResolver.GetEffectiveRuleMode(mc.Check)
+
+					if effectiveMode == config.RuleModeAny {
+						// Send individual notifications for each failing host if rule mode is any
+						for _, failingHost := range failingHosts {
+							notification := notifications.Notification{
+								Message:  buildNotificationMessage(rule, ruleResult, effectiveMode, successfulChecks, totalHosts, []string{failingHost}),
+								Level:    getNotificationLevel(ruleResult),
+								Tags:     mc.Tags,
+								Site:     mc.Site,
+								Group:    mc.Group.Name,
+								Port:     mc.Check.Port,
+								Protocol: string(mc.Check.Protocol),
+								Host:     failingHost,
+							}
+							sendRuleNotifications(mc.Ctx, rule, notification, mc.NotifierMap)
+						}
+					} else {
+						// Send single group-level notification if rule mode is all
+						notification := notifications.Notification{
+							Message:  buildNotificationMessage(rule, ruleResult, effectiveMode, successfulChecks, totalHosts, failingHosts),
+							Level:    getNotificationLevel(ruleResult),
+							Tags:     mc.Tags,
+							Site:     mc.Site,
+							Group:    mc.Group.Name,
+							Port:     mc.Check.Port,
+							Protocol: string(mc.Check.Protocol),
+							Host:     strings.Join(failingHosts, ","),
+						}
+						sendRuleNotifications(mc.Ctx, rule, notification, mc.NotifierMap)
 					}
-					sendRuleNotifications(mc.Ctx, rule, notification, mc.NotifierMap)
 				}
 				lastRuleEval[rule.Name] = time.Now()
 			}
@@ -249,7 +273,7 @@ func monitorGroup(mc MonitoringContext) {
 	}
 }
 
-func buildNotificationMessage(rule rules.Rule, result rules.RuleResult, mode config.RuleMode, successfulChecks, totalHosts int) string {
+func buildNotificationMessage(rule rules.Rule, result rules.RuleResult, mode config.RuleMode, successfulChecks, totalHosts int, failingHosts []string) string {
 	if result.Error != nil {
 		return fmt.Sprintf("Rule evaluation failed: %v", result.Error)
 	}

@@ -15,12 +15,14 @@ type CheckConfig struct {
 	Protocol string   `yaml:"protocol"`
 	Interval string   `yaml:"interval"`
 	Tags     []string `yaml:"tags"`
+	RuleMode RuleMode `yaml:"ruleMode,omitempty"`
 }
 
 type HostConfig struct {
-	Host   string        `yaml:"host"`
-	Tags   []string      `yaml:"tags"`
-	Checks []CheckConfig `yaml:"checks"`
+	Host     string        `yaml:"host"`
+	Tags     []string      `yaml:"tags"`
+	Checks   []CheckConfig `yaml:"checks"`
+	RuleMode RuleMode      `yaml:"ruleMode,omitempty"`
 }
 
 type NotificationConfig struct {
@@ -104,5 +106,36 @@ func normalizeConfig(c *CheckConfig) {
 	c.Protocol = strings.ToUpper(c.Protocol)
 	if _, err := strconv.Atoi(c.Interval); err == nil {
 		c.Interval = c.Interval + "s"
+	}
+}
+
+type RuleModeResolver struct {
+	Group GroupConfig
+}
+
+func NewRuleModeResolver(group GroupConfig) *RuleModeResolver {
+	return &RuleModeResolver{
+		Group: group,
+	}
+}
+
+func (r *RuleModeResolver) GetEffectiveRuleMode(check CheckConfig) RuleMode {
+	if check.RuleMode != "" {
+		return check.RuleMode
+	}
+
+	if r.Group.RuleMode != "" {
+		return r.Group.RuleMode
+	}
+
+	return RuleModeAll
+}
+
+func (r *RuleModeResolver) ShouldTrigger(anyDown bool, allDown bool, check CheckConfig) bool {
+	switch r.GetEffectiveRuleMode(check) {
+	case RuleModeAny:
+		return anyDown
+	default:
+		return allDown
 	}
 }
