@@ -60,26 +60,37 @@ func main() {
 	}
 
 	notifierMap := make(map[string]notifications.Notifier)
-
-	if len(config.Notifications) == 0 {
-		logNotifier := notifications.NewLogNotifier(logger)
-		if err := logNotifier.Initialize(ctx); err != nil {
+	for _, n := range config.Notifications {
+		notifier, err := notifications.NewNotifier(n.Type, logger)
+		if err != nil {
 			logger.Fatal(err)
 		}
-		notifierMap[string(notifications.LogNotification)] = logNotifier
-	} else {
-		for _, n := range config.Notifications {
-			notifier, err := notifications.NewNotifier(n.Type, logger)
-			if err != nil {
-				logger.Fatal(err)
-			}
-			if err := notifier.Initialize(ctx); err != nil {
-				logger.Fatal(err)
-			}
-			notifierMap[n.Type] = notifier
-			defer notifier.Close()
+		if err := notifier.Initialize(ctx); err != nil {
+			logger.Fatal(err)
 		}
+		defer notifier.Close()
+		notifierMap[n.Type] = notifier
 	}
+
+	// if len(config.Notifications) == 0 {
+	// 	logNotifier := notifications.NewLogNotifier(logger)
+	// 	if err := logNotifier.Initialize(ctx); err != nil {
+	// 		logger.Fatal(err)
+	// 	}
+	// 	notifierMap[string(notifications.LogNotification)] = logNotifier
+	// } else {
+	// 	for _, n := range config.Notifications {
+	// 		notifier, err := notifications.NewNotifier(n.Type, logger)
+	// 		if err != nil {
+	// 			logger.Fatal(err)
+	// 		}
+	// 		if err := notifier.Initialize(ctx); err != nil {
+	// 			logger.Fatal(err)
+	// 		}
+	// 		notifierMap[n.Type] = notifier
+	// 		defer notifier.Close()
+	// 	}
+	// }
 
 	metrics.StartMetricsServer(logger)
 
@@ -195,6 +206,7 @@ func evaluateRules(
 		monCtx.Check.Tags...))
 
 	for _, rule := range deps.Rules {
+		deps.Logger.Debugf("Evaluating rule %s with tags %v", rule.Name, rule.Tags)
 		if !hasMatchingTags(combinedTags, rule.Tags) {
 			deps.Logger.Debugf("Skipping rule %s because it does not match any tags"+
 				"\nAvailable tags: %v"+
@@ -207,12 +219,14 @@ func evaluateRules(
 			continue
 		}
 
-		if time.Since(lastRuleEval[rule.Name]) < time.Second*15 {
-			deps.Logger.Debugf("Skipping rule %s because it was last evaluated less than 15 seconds ago", rule.Name)
-			continue
-		}
+		// if time.Since(lastRuleEval[rule.Name]) < time.Second*15 {
+		// 	deps.Logger.Debugf("Skipping rule %s because it was last evaluated less than 15 seconds ago", rule.Name)
+		// 	continue
+		// }
 
+		fmt.Println("EVAL RULE GOT HERE")
 		ruleResult := rules.EvaluateRule(rule, downtime, avgResponseTime)
+		deps.Logger.Debugf("Rule %s evaluation result: %v", rule.Name, ruleResult)
 		if ruleResult.Error != nil || ruleResult.Satisfied {
 			deps.Logger.Debugf("Rule %s satisfied", rule.Name)
 			notification := notifications.Notification{
@@ -275,7 +289,21 @@ func updateMetricsAndDowntime(
 
 	metrics.UpdateGroup(site, group.Name, checkConfig.Port, string(checkConfig.Protocol), groupTags, !allDown, avgResponseTime)
 
-	shouldUpdateDowntime := group.RuleMode == config.RuleModeAny && anyDown || group.RuleMode != config.RuleModeAny && allDown
+	// shouldUpdateDowntime := group.RuleMode == config.RuleModeAny && anyDown || group.RuleMode != config.RuleModeAny && allDown
+	shouldUpdateDowntime := false
+	switch group.RuleMode {
+	case config.RuleModeAny:
+		shouldUpdateDowntime = anyDown
+	default:
+		shouldUpdateDowntime = allDown
+	}
+	fmt.Printf("Should update downtime: %v\n", shouldUpdateDowntime)
+	fmt.Printf("All down: %v\n", allDown)
+	fmt.Printf("Any down: %v\n", anyDown)
+	fmt.Printf("Group rule mode: %v\n", group.RuleMode)
+	fmt.Printf("Interval: %v\n", interval)
+	fmt.Printf("Should update downtime: %v\n", shouldUpdateDowntime)
+	fmt.Printf("Update downtime: %v\n", updateDowntime(0, interval, !shouldUpdateDowntime))
 	return avgResponseTime, updateDowntime(0, interval, !shouldUpdateDowntime)
 }
 

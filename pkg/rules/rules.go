@@ -42,6 +42,11 @@ func EvaluateRule(rule Rule, downtime time.Duration, responseTime time.Duration)
 		Rule:     rule,
 		EvalTime: time.Now(),
 	}
+	fmt.Println("EVAL RULE GOT HERE 2")
+	fmt.Println(rule)
+	fmt.Println(downtime)
+	fmt.Println(responseTime)
+	fmt.Println("EVAL RULE GOT HERE END")
 
 	if err := rule.Validate(); err != nil {
 		result.Error = fmt.Errorf("invalid rule: %w", err)
