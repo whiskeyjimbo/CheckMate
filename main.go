@@ -75,7 +75,7 @@ func main() {
 	health.SetReady(true)
 
 	var wg sync.WaitGroup
-	startMonitoring(ctx, &wg, logger, config, metrics.NewPrometheusMetrics(logger), notifierMap)
+	startMonitoring(ctx, &wg, logger, config, metrics.NewPrometheusMetrics(logger, config.MonitorSite), notifierMap)
 
 	waitForShutdown(logger, cancel, &wg)
 }
@@ -210,6 +210,8 @@ func monitorGroup(mc MonitoringContext) {
 				mc.Tags,
 				!allDown,
 				avgResponseTime,
+				successfulChecks,
+				totalHosts,
 			)
 
 			shouldUpdateDowntime := ruleModeResolver.ShouldTrigger(anyDown, allDown, mc.Check)
@@ -239,7 +241,7 @@ func monitorGroup(mc MonitoringContext) {
 						// Send individual notifications for each failing host if rule mode is any
 						for _, failingHost := range failingHosts {
 							notification := notifications.Notification{
-								Message:  buildNotificationMessage(rule, ruleResult, effectiveMode, successfulChecks, totalHosts, []string{failingHost}),
+								Message:  buildNotificationMessage(rule, ruleResult, effectiveMode, successfulChecks, totalHosts),
 								Level:    getNotificationLevel(ruleResult),
 								Tags:     mc.Tags,
 								Site:     mc.Site,
@@ -253,7 +255,7 @@ func monitorGroup(mc MonitoringContext) {
 					} else {
 						// Send single group-level notification if rule mode is all
 						notification := notifications.Notification{
-							Message:  buildNotificationMessage(rule, ruleResult, effectiveMode, successfulChecks, totalHosts, failingHosts),
+							Message:  buildNotificationMessage(rule, ruleResult, effectiveMode, successfulChecks, totalHosts),
 							Level:    getNotificationLevel(ruleResult),
 							Tags:     mc.Tags,
 							Site:     mc.Site,
@@ -273,7 +275,7 @@ func monitorGroup(mc MonitoringContext) {
 	}
 }
 
-func buildNotificationMessage(rule rules.Rule, result rules.RuleResult, mode config.RuleMode, successfulChecks, totalHosts int, failingHosts []string) string {
+func buildNotificationMessage(rule rules.Rule, result rules.RuleResult, mode config.RuleMode, successfulChecks, totalHosts int) string {
 	if result.Error != nil {
 		return fmt.Sprintf("Rule evaluation failed: %v", result.Error)
 	}
@@ -337,7 +339,7 @@ func logCheckResult(ctx CheckContext) {
 		"host", ctx.Host,
 		"port", ctx.CheckConfig.Port,
 		"protocol", ctx.CheckConfig.Protocol,
-		"responseTime_us", ctx.Elapsed,
+		"latency_ms", ctx.Elapsed.Milliseconds(),
 		"success", ctx.Success,
 		"tags", ctx.Tags,
 	)

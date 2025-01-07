@@ -62,6 +62,7 @@ type SiteConfig struct {
 }
 
 type Config struct {
+	MonitorSite   string               `yaml:"monitorSite"`
 	Sites         []SiteConfig         `yaml:"sites"`
 	Rules         []rules.Rule         `yaml:"rules"`
 	Notifications []NotificationConfig `yaml:"notifications"`
@@ -76,6 +77,10 @@ func loadConfig(configFile string) (*Config, error) {
 	var config Config
 	if err := yaml.Unmarshal(fileContent, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	}
+
+	if config.MonitorSite == "" {
+		config.MonitorSite = "monitor-site"
 	}
 
 	for _, site := range config.Sites {

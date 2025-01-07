@@ -1,13 +1,35 @@
+monitorSite: "sol"
 sites:
   - name: "mars-lab"
-    tags: ["region-mars", "prod"]
+    tags: ["region-mars", "dev"]
     groups:
       - name: "api-service.dev.com"
-        tags: ["prod"]
         hosts:
           - host: "127.0.0.1"
             tags: ["primary"]
-          - host: "localhost2"
+          - host: "imina.lab.one"
+            tags: ["primary"]
+          - host: "imina.lab.two"
+            tags: ["secondary"]
+        checks:
+          - port: "80"
+            protocol: HTTP
+            interval: 10s
+            tags: ["api"]
+            ruleMode: "any"
+          - port: "22"
+            protocol: TCP
+            interval: 10s
+            tags: ["ssh"]
+            ruleMode: "any"
+  - name: "pluto-prod"
+    tags: ["region-pluto", "prod"]
+    groups:
+      - name: "api-service1.prod.com"
+        hosts:
+          - host: "127.0.0.1"
+            tags: ["primary"]
+          - host: "imin.prod.one"
             tags: ["secondary"]
         checks:
           - port: "800"
@@ -18,25 +40,21 @@ sites:
             protocol: TCP
             interval: 10s
             tags: ["ssh"]
-  # - name: "pluto-prod"
-  #   tags: ["region-pluto", "prod"]
-  #   domains:
-  #     - name: "api-service.prod.com"
-  #       tags: ["prod"]
-  #       hosts:
-  #         - host: "127.0.0.1"
-  #           tags: ["primary"]
-  #         - host: "localhost2"
-  #           tags: ["secondary"]
-  #       checks:
-  #         - port: "800"
-  #           protocol: HTTP
-  #           interval: 10s
-  #           tags: ["api"]
-  #         - port: "22"
-  #           protocol: TCP
-  #           interval: 10s
-  #           tags: ["ssh"]
+      - name: "api-service2.prod.com"
+        hosts:
+          - host: "127.0.0.1"
+            tags: ["primary"]
+          - host: "imin.prod.one"
+            tags: ["secondary"]
+        checks:
+          - port: "800"
+            protocol: HTTP
+            interval: 10s
+            tags: ["api"]
+          - port: "22"
+            protocol: TCP
+            interval: 10s
+            tags: ["ssh"]
 rules:
   - name: high_latency_warning
     condition: "responseTime > 1ms"
@@ -49,6 +67,10 @@ rules:
   - name: critical_downtime_SSH
     condition: "downtime > 10s"
     tags: ["ssh"]
+    notifications: ["log"]  # This rule would use both (when slack is implemented)
+  - name: critical_downtime_SSH_warning
+    condition: "downtime > 5s"
+    tags: ["ssh-warning"]
     notifications: ["log"]  # This rule would use both (when slack is implemented)
 notifications:
   - type: "log"    # Currently the only implemented type

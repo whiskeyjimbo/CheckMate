@@ -158,17 +158,24 @@ avg(checkmate_check_latency_milliseconds) by (site, group)
 ## Metrics
 
 CheckMate exposes Prometheus metrics at `:9100/metrics` including:
-- `checkmate_check_success`: Service availability (1 = up, 0 = down)
-- `checkmate_check_latency_milliseconds`: Response time gauge
-- `checkmate_check_latency_milliseconds_histogram`: Response time distribution
 
-Labels included with metrics:
-- `site`: Site name
-- `group`: Group name
-- `host`: Target hostname (empty for group-level metrics)
-- `port`: Service port
-- `protocol`: Check protocol
-- `tags`: Comma-separated list of combined tags
+### Core Metrics
+- `checkmate_check_success`: Service availability (1 = up, 0 = down)
+- `checkmate_check_latency_milliseconds`: Response time in milliseconds
+- `checkmate_check_latency_milliseconds_histogram`: Response time distribution in milliseconds
+- `checkmate_hosts_up`: Number of hosts up in a group (per port/protocol)
+- `checkmate_hosts_total`: Total number of hosts in a group (per port/protocol)
+
+### Graph Visualization Metrics (Beta)
+> Note: These metrics are designed for Grafana's Node Graph visualization and are currently in  flux
+
+- `checkmate_node_info`: Node information for graph visualization
+  - Labels: id, type (site/group/host), name, tags, port, protocol
+  - Values: 1 for active nodes, 0 for inactive
+
+- `checkmate_edge_info`: Edge information with latency
+  - Labels: source, target, type, metric, port, protocol
+  - Values: latency in milliseconds
 
 Example Prometheus queries:
 ```promql
@@ -180,7 +187,37 @@ avg(checkmate_check_latency_milliseconds{tags=~".*prod.*", tags=~".*api.*"})
 
 # 95th percentile latency by site
 histogram_quantile(0.95, sum(rate(checkmate_check_latency_milliseconds_histogram[5m])) by (le, site))
+
+# Host availability ratio per group
+sum(checkmate_hosts_up) by (id) / sum(checkmate_hosts_total) by (id)
+
+# Graph Visualization (Beta)
+# Node status
+checkmate_node_info{type="host", port="443", protocol="HTTPS"}
+
+# Edge latencies
+avg(checkmate_edge_info{type="contains", metric="latency"}) by (source, target, port, protocol)
 ```
+
+### Grafana Node Graph Setup (Beta)
+To visualize your infrastructure in Grafana's Node Graph:
+
+1. Create a new Node Graph panel
+2. Configure the Node Query:
+   ```promql
+   checkmate_node_info
+   ```
+
+3. Configure the Edge Query:
+   ```promql
+   checkmate_edge_info{metric="latency"}
+   ```
+
+4. Set transformations:
+   - Nodes: Use 'id' for node ID, 'type' for node class
+   - Edges: Use 'source' and 'target' for connections
+
+> Note: Graph visualization features are in flux and the query/configuration interface may change
 
 ## Health Checks
 

@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -26,19 +27,40 @@ type MetricLabels struct {
 }
 
 type PrometheusMetrics struct {
-	logger                *zap.SugaredLogger
-	checkStatusGauge      *prometheus.GaugeVec
-	checkLatencyGauge     *prometheus.GaugeVec
-	checkLatencyHistogram *prometheus.HistogramVec
+	logger      *zap.SugaredLogger
+	monitorSite string
+
+	// Check metrics
+	checkStatus  *prometheus.GaugeVec
+	checkLatency *prometheus.GaugeVec
+	latencyHist  *prometheus.HistogramVec
+
+	// Graph metrics
+	nodeInfo   *prometheus.GaugeVec
+	edgeInfo   *prometheus.GaugeVec
+	hostsUp    *prometheus.GaugeVec
+	hostsTotal *prometheus.GaugeVec
 }
 
-func NewPrometheusMetrics(logger *zap.SugaredLogger) *PrometheusMetrics {
-	return &PrometheusMetrics{
-		logger:                logger,
-		checkStatusGauge:      createStatusGauge(),
-		checkLatencyGauge:     createLatencyGauge(),
-		checkLatencyHistogram: createLatencyHistogram(),
+func NewPrometheusMetrics(logger *zap.SugaredLogger, monitorSite string) *PrometheusMetrics {
+	p := &PrometheusMetrics{
+		logger:      logger,
+		monitorSite: monitorSite,
 	}
+	p.initMetrics()
+	return p
+}
+
+func (p *PrometheusMetrics) initMetrics() {
+	// init the check metrics
+	p.checkStatus = createGauge("check_success", "Status of the check (1 for success, 0 for failure)")
+	p.checkLatency = createGauge("check_latency_milliseconds", "Check duration in milliseconds")
+	p.latencyHist = createHistogram("check_latency_milliseconds_histogram", "Check duration distribution")
+
+	// Graph metrics for Grafana Network Graph Visualization
+	p.nodeInfo = createNodeMetric()
+	p.edgeInfo = createEdgeMetric()
+	p.hostsUp, p.hostsTotal = createHostCountMetrics()
 }
 
 func StartMetricsServer(logger *zap.SugaredLogger) {
@@ -53,105 +75,150 @@ func StartMetricsServer(logger *zap.SugaredLogger) {
 	}()
 }
 
-func (p *PrometheusMetrics) Update(
-	site string,
-	host string,
-	port string,
-	protocol string,
-	tags []string,
-	success bool,
-	responseTime time.Duration,
-) {
-	labels := MetricLabels{
-		Site:     site,
-		Group:    "",
-		Host:     host,
-		Port:     port,
-		Protocol: protocol,
-	}
-	p.updateMetrics(labels, tags, success, responseTime)
-}
-
-func (p *PrometheusMetrics) UpdateGroup(
-	site string,
-	group string,
-	port string,
-	protocol string,
-	tags []string,
-	success bool,
-	responseTime time.Duration,
-) {
+func (p *PrometheusMetrics) UpdateGroup(site, group, port, protocol string, tags []string, success bool, responseTime time.Duration, hostsUp, hostsTotal int) {
 	labels := MetricLabels{
 		Site:     site,
 		Group:    group,
-		Host:     "",
 		Port:     port,
 		Protocol: protocol,
 	}
 	p.updateMetrics(labels, tags, success, responseTime)
+	p.updateGroupCounts(site, group, port, protocol, hostsUp, hostsTotal)
 }
 
 func (p *PrometheusMetrics) updateMetrics(labels MetricLabels, tags []string, success bool, elapsed time.Duration) {
-	tagString := strings.Join(tags, ",")
-	if tagString == "" {
-		tagString = "none"
-	}
-
+	tagString := normalizeTagString(tags)
 	labelValues := []string{labels.Site, labels.Group, labels.Host, labels.Port, labels.Protocol, tagString}
 
 	statusValue := 0.0
 	if success {
 		statusValue = 1.0
 	}
+	p.checkStatus.WithLabelValues(labelValues...).Set(statusValue)
 
-	latencyMs := float64(elapsed.Milliseconds())
+	// Update latency metrics only for successful checks
+	if success {
+		latencyMs := float64(elapsed.Milliseconds())
+		p.checkLatency.WithLabelValues(labelValues...).Set(latencyMs)
+		p.latencyHist.WithLabelValues(labelValues...).Observe(latencyMs)
+	}
 
-	p.checkStatusGauge.WithLabelValues(labelValues...).Set(statusValue)
-	p.checkLatencyGauge.WithLabelValues(labelValues...).Set(latencyMs)
-	p.checkLatencyHistogram.WithLabelValues(labelValues...).Observe(latencyMs)
-
-	p.logger.Debugw("Updated metrics",
-		"site", labels.Site,
-		"group", labels.Group,
-		"host", labels.Host,
-		"port", labels.Port,
-		"protocol", labels.Protocol,
-		"tags", tags,
-		"success", success,
-		"latency_ms", latencyMs,
-	)
+	p.updateGraphMetrics(labels, tagString, success, elapsed)
 }
 
-func createStatusGauge() *prometheus.GaugeVec {
+func (p *PrometheusMetrics) updateGraphMetrics(labels MetricLabels, tagString string, success bool, responseTime time.Duration) {
+	latencyMs := float64(responseTime.Milliseconds())
+
+	// Monitor site node
+	p.nodeInfo.WithLabelValues(p.monitorSite, "site", p.monitorSite, "monitor,internal", "9100", "monitor").Set(1)
+	p.hostsUp.WithLabelValues(p.monitorSite, "site", "9100", "monitor").Set(1)
+	p.hostsTotal.WithLabelValues(p.monitorSite, "site", "9100", "monitor").Set(1)
+
+	// Site metrics
+	if labels.Site != "" && labels.Site != p.monitorSite {
+		p.nodeInfo.WithLabelValues(labels.Site, "site", labels.Site, tagString, labels.Port, labels.Protocol).Set(1)
+		p.edgeInfo.WithLabelValues(p.monitorSite, labels.Site, "monitors", "latency", labels.Port, labels.Protocol).Set(latencyMs)
+	}
+
+	// Group metrics
+	if labels.Group != "" {
+		nodeID := fmt.Sprintf("%s/%s", labels.Site, labels.Group)
+		p.nodeInfo.WithLabelValues(nodeID, "group", labels.Group, tagString, labels.Port, labels.Protocol).Set(1)
+		p.edgeInfo.WithLabelValues(labels.Site, nodeID, "contains", "latency", labels.Port, labels.Protocol).Set(latencyMs)
+	}
+
+	// Host metrics
+	if labels.Host != "" {
+		nodeID := fmt.Sprintf("%s/%s/%s", labels.Site, labels.Group, labels.Host)
+		p.nodeInfo.WithLabelValues(nodeID, "host", labels.Host, tagString, labels.Port, labels.Protocol).Set(float64(boolToInt(success)))
+		groupID := fmt.Sprintf("%s/%s", labels.Site, labels.Group)
+		p.edgeInfo.WithLabelValues(groupID, nodeID, "contains", "latency", labels.Port, labels.Protocol).Set(latencyMs)
+	}
+}
+
+func (p *PrometheusMetrics) updateGroupCounts(site, group, port, protocol string, hostsUp, hostsTotal int) {
+	nodeID := fmt.Sprintf("%s/%s", site, group)
+	p.hostsUp.WithLabelValues(nodeID, "group", port, protocol).Set(float64(hostsUp))
+	p.hostsTotal.WithLabelValues(nodeID, "group", port, protocol).Set(float64(hostsTotal))
+}
+
+func createGauge(name, help string) *prometheus.GaugeVec {
 	return promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Name:      "check_success",
-			Help:      "Status of the check (1 for success, 0 for failure)",
+			Name:      name,
+			Help:      help,
 		},
 		[]string{"site", "group", "host", "port", "protocol", "tags"},
 	)
 }
 
-func createLatencyGauge() *prometheus.GaugeVec {
-	return promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "check_latency_milliseconds",
-			Help:      "Gauge of the check duration in milliseconds",
-		},
-		[]string{"site", "group", "host", "port", "protocol", "tags"},
-	)
-}
-
-func createLatencyHistogram() *prometheus.HistogramVec {
+func createHistogram(name, help string) *prometheus.HistogramVec {
 	return promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: namespace,
-			Name:      "check_latency_milliseconds_histogram",
-			Help:      "Histogram of the check duration in milliseconds",
+			Name:      name,
+			Help:      help,
 			Buckets:   prometheus.DefBuckets,
 		},
 		[]string{"site", "group", "host", "port", "protocol", "tags"},
 	)
+}
+
+func createNodeMetric() *prometheus.GaugeVec {
+	return promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "node_info",
+			Help:      "Node information for graph visualization",
+		},
+		[]string{"id", "type", "name", "tags", "port", "protocol"},
+	)
+}
+
+func createEdgeMetric() *prometheus.GaugeVec {
+	return promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "edge_info",
+			Help:      "Edge information with latency for graph visualization",
+		},
+		[]string{"source", "target", "type", "metric", "port", "protocol"},
+	)
+}
+
+func createHostCountMetrics() (*prometheus.GaugeVec, *prometheus.GaugeVec) {
+	hostsUp := promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "hosts_up",
+			Help:      "Number of hosts up in a group or site",
+		},
+		[]string{"id", "type", "port", "protocol"},
+	)
+
+	hostsTotal := promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "hosts_total",
+			Help:      "Total number of hosts in a group or site",
+		},
+		[]string{"id", "type", "port", "protocol"},
+	)
+
+	return hostsUp, hostsTotal
+}
+
+func normalizeTagString(tags []string) string {
+	if len(tags) == 0 {
+		return "none"
+	}
+	return strings.Join(tags, ",")
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

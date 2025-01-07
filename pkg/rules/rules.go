@@ -95,14 +95,14 @@ func (r Rule) Validate() error {
 
 func createExprEnv(downtime, responseTime time.Duration) RuleEnvironment {
 	return RuleEnvironment{
-		Downtime:     timeDurationToSeconds(downtime),
-		ResponseTime: timeDurationToSeconds(responseTime),
+		Downtime:     int(downtime.Seconds()),
+		ResponseTime: int(responseTime.Milliseconds()),
 	}
 }
 
 func processCondition(condition string, downtime, responseTime time.Duration) (string, error) {
-	condition = strings.ReplaceAll(condition, "${downtime}", fmt.Sprintf("%d", timeDurationToSeconds(downtime)))
-	condition = strings.ReplaceAll(condition, "${responseTime}", fmt.Sprintf("%d", timeDurationToSeconds(responseTime)))
+	condition = strings.ReplaceAll(condition, "${downtime}", fmt.Sprintf("%d", int(downtime.Seconds())))
+	condition = strings.ReplaceAll(condition, "${responseTime}", fmt.Sprintf("%d", int(responseTime.Milliseconds())))
 
 	words := strings.Split(condition, " ")
 	for i, word := range words {
