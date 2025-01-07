@@ -1,0 +1,21 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./tmp/main ."
+bin = "tmp/main"
+args_bin = ["examples/config.yaml"]
+include_ext = ["go", "yaml"]
+exclude_dir = ["tmp", "vendor", "dist"]
+delay = 1000 # ms
+
+[log]
+time = true
+level = "info" # debug, info, warn, error, fatal
+
+[screen]
+clear_on_rebuild = true
+keep_scroll = true
+
+[misc]
+clean_on_exit = true 

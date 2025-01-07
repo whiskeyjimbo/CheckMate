@@ -154,3 +154,22 @@ All health check endpoints are served on port 9100 alongside metrics.
 ## License
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+## Development
+
+### Prerequisites
+- Go 1.21 or higher
+- [air](https://github.com/air-verse/air) for live reloading (optional)
+
+### Live Reloading
+For development with automatic rebuilding on code changes:
+
+1. Install Air:
+```bash
+go install github.com/air-verse/air@latest
+```
+
+2. Run with Air:
+```bash
+air
+```
