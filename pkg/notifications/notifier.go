@@ -11,6 +11,7 @@ type NotificationType string
 
 const (
 	LogNotification NotificationType = "log"
+	// Future notification types:
 	// SlackNotification NotificationType = "slack"
 	// EmailNotification NotificationType = "email"
 )
@@ -32,9 +33,6 @@ type Notification struct {
 	Host     string
 	Port     string
 	Protocol string
-	PortTags []string
-	HostTags []string
-	SiteTags []string
 }
 
 type Notifier interface {
@@ -53,10 +51,6 @@ func NewNotifier(notifierType string, opts ...interface{}) (Notifier, error) {
 			}
 		}
 		return nil, fmt.Errorf("log notifier requires a logger")
-	// case SlackNotification:
-	//     return NewSlackNotifier(opts...), nil
-	// case EmailNotification:
-	//     return NewEmailNotifier(opts...), nil
 	default:
 		return nil, fmt.Errorf("unsupported notification type: %s", notifierType)
 	}

@@ -6,7 +6,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Stub out log notifier interface
 type LogNotifier struct {
 	logger *zap.SugaredLogger
 }
@@ -18,7 +17,7 @@ func NewLogNotifier(logger *zap.SugaredLogger) *LogNotifier {
 }
 
 func (n *LogNotifier) SendNotification(ctx context.Context, notification Notification) error {
-	n.logger.With(
+	logger := n.logger.With(
 		"level", notification.Level,
 		"site", notification.Site,
 		"group", notification.Group,
@@ -26,7 +25,16 @@ func (n *LogNotifier) SendNotification(ctx context.Context, notification Notific
 		"port", notification.Port,
 		"protocol", notification.Protocol,
 		"tags", notification.Tags,
-	).Info(notification.Message)
+	)
+
+	switch notification.Level {
+	case ErrorLevel:
+		logger.Error(notification.Message)
+	case WarningLevel:
+		logger.Warn(notification.Message)
+	default:
+		logger.Info(notification.Message)
+	}
 
 	return nil
 }
