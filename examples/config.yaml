@@ -1,76 +1,106 @@
 monitorSite: "sol"
+
 sites:
   - name: "mars-lab"
     tags: ["region-mars", "dev"]
     groups:
-      - name: "api-service.dev.com"
+      - name: "api-service"
+        tags: ["service-api", "critical"]
+        ruleMode: "any"  # Override default "all" mode for this group
         hosts:
-          - host: "127.0.0.1"
+          - host: "api-1.mars.lab"
             tags: ["primary"]
-          - host: "imina.lab.one"
+          - host: "api-2.mars.lab"
             tags: ["primary"]
-          - host: "imina.lab.two"
-            tags: ["secondary"]
+          - host: "api-3.mars.lab"
+            tags: ["backup"]
         checks:
-          - port: "80"
+          - port: "8080"
             protocol: HTTP
-            interval: 10s
-            tags: ["api"]
-            ruleMode: "any"
-          - port: "22"
+            interval: "30s"
+            tags: ["http-api"]
+          - port: "9090"
+            protocol: HTTP
+            interval: "1m"
+            tags: ["metrics"]
+            ruleMode: "all"  # Override group's "any" mode for this check
+
+      - name: "database"
+        tags: ["service-db", "ha"]
+        hosts:
+          - host: "db-1.mars.lab"
+            tags: ["primary"]
+          - host: "db-2.mars.lab"
+            tags: ["replica"]
+        checks:
+          - port: "5432"
             protocol: TCP
-            interval: 10s
-            tags: ["ssh"]
-            ruleMode: "any"
+            interval: "15s"
+            tags: ["postgres"]
+
   - name: "pluto-prod"
     tags: ["region-pluto", "prod"]
     groups:
-      - name: "api-service1.prod.com"
+      - name: "api-service"
+        tags: ["service-api", "critical", "prod"]
         hosts:
-          - host: "127.0.0.1"
+          - host: "api-1.pluto.prod"
             tags: ["primary"]
-          - host: "imin.prod.one"
-            tags: ["secondary"]
+          - host: "api-2.pluto.prod"
+            tags: ["primary"]
+          - host: "api-3.pluto.prod"
+            tags: ["primary"]
         checks:
-          - port: "800"
+          - port: "443"
             protocol: HTTP
-            interval: 10s
-            tags: ["api"]
-          - port: "22"
-            protocol: TCP
-            interval: 10s
-            tags: ["ssh"]
-      - name: "api-service2.prod.com"
+            interval: "10s"
+            tags: ["https-api"]
+          - port: "9100"
+            protocol: HTTP
+            interval: "30s"
+            tags: ["metrics"]
+
+      - name: "mail-service"
+        tags: ["service-mail"]
         hosts:
-          - host: "127.0.0.1"
+          - host: "smtp-1.pluto.prod"
             tags: ["primary"]
-          - host: "imin.prod.one"
-            tags: ["secondary"]
+          - host: "smtp-2.pluto.prod"
+            tags: ["backup"]
         checks:
-          - port: "800"
-            protocol: HTTP
-            interval: 10s
-            tags: ["api"]
-          - port: "22"
-            protocol: TCP
-            interval: 10s
-            tags: ["ssh"]
+          - port: "25"
+            protocol: SMTP
+            interval: "1m"
+            tags: ["smtp"]
+
 rules:
-  - name: high_latency_warning
-    condition: "responseTime > 1ms"
-    tags: ["prod"]
-    notifications: ["log"]  # This rule only sends log notifications
-  - name: critical_downtime_prod
-    condition: "downtime > 15s"
-    tags: ["prod"]
-    notifications: ["log"]  # This rule would use both (when slack is implemented)
-  - name: critical_downtime_SSH
-    condition: "downtime > 10s"
-    tags: ["ssh"]
-    notifications: ["log"]  # This rule would use both (when slack is implemented)
-  - name: critical_downtime_SSH_warning
-    condition: "downtime > 5s"
-    tags: ["ssh-warning"]
-    notifications: ["log"]  # This rule would use both (when slack is implemented)
+  - name: "api_high_latency"
+    condition: "responseTime > 500"  # milliseconds
+    tags: ["http-api", "https-api"]
+    notifications: ["log"]
+
+  - name: "api_critical_downtime"
+    condition: "downtime > 30s"  # seconds
+    tags: ["service-api", "critical"]
+    notifications: ["log"]
+
+  - name: "db_downtime_warning"
+    condition: "downtime > 10s"  # seconds
+    tags: ["service-db"]
+    notifications: ["log"]
+
+  - name: "prod_service_degraded"
+    condition: "responseTime > 1000 || downtime > 0" 
+    tags: ["prod", "critical"]
+    notifications: ["log"]
+
 notifications:
   - type: "log"    # Currently the only implemented type
+  # Future notification types:
+  # - type: "slack"
+  #   webhook: "https://hooks.slack.com/services/..."
+  #   channel: "#alerts"
+  # - type: "email"
+  #   smtp_server: "smtp.example.com"
+  #   from: "alerts@example.com"
+  #   to: ["ops@example.com"]
