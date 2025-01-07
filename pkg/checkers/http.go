@@ -8,13 +8,11 @@ import (
 )
 
 type HTTPChecker struct {
-	protocol Protocol
-	client   *http.Client
+	client *http.Client
 }
 
-func NewHTTPChecker(protocol Protocol) *HTTPChecker {
+func NewHTTPChecker() *HTTPChecker {
 	return &HTTPChecker{
-		protocol: protocol,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -22,7 +20,7 @@ func NewHTTPChecker(protocol Protocol) *HTTPChecker {
 }
 
 func (c *HTTPChecker) Protocol() Protocol {
-	return c.protocol
+	return ProtocolHTTP
 }
 
 func (c *HTTPChecker) Check(ctx context.Context, address string) CheckResult {
@@ -44,17 +42,5 @@ func (c *HTTPChecker) Check(ctx context.Context, address string) CheckResult {
 		return newFailedResult(elapsed, fmt.Errorf("HTTP status code: %d", resp.StatusCode))
 	}
 
-	return CheckResult{
-		Success:      true,
-		ResponseTime: elapsed,
-		Error:        nil,
-	}
-}
-
-func newFailedResult(duration time.Duration, err error) CheckResult {
-	return CheckResult{
-		Success:      false,
-		ResponseTime: duration,
-		Error:        err,
-	}
+	return newSuccessResult(elapsed)
 }

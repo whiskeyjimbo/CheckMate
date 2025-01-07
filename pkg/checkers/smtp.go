@@ -1,37 +1,31 @@
 package checkers
 
 import (
+	"context"
 	"net/smtp"
 	"time"
-	"context"
 )
 
-type SMTPChecker struct {
-	protocol Protocol
+type SMTPChecker struct{}
+
+func NewSMTPChecker() *SMTPChecker {
+	return &SMTPChecker{}
 }
 
 func (c *SMTPChecker) Protocol() Protocol {
-	return c.protocol
+	return ProtocolSMTP
 }
 
 func (c *SMTPChecker) Check(ctx context.Context, address string) CheckResult {
-	_ = ctx // TODO: figure out context in smtp
 	start := time.Now()
+
 	client, err := smtp.Dial(address)
 	elapsed := time.Since(start)
 
 	if err != nil {
-		return CheckResult{
-			Success:      false,
-			ResponseTime: elapsed,
-			Error:        err,
-		}
+		return newFailedResult(elapsed, err)
 	}
 	defer client.Close()
 
-	return CheckResult{
-		Success:      true,
-		ResponseTime: elapsed,
-		Error:        nil,
-	}
+	return newSuccessResult(elapsed)
 }

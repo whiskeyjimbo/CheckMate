@@ -2,35 +2,31 @@ package checkers
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 )
 
-type DNSChecker struct {
-	protocol Protocol
+type DNSChecker struct{}
+
+func NewDNSChecker() *DNSChecker {
+	return &DNSChecker{}
 }
 
 func (c *DNSChecker) Protocol() Protocol {
-	return c.protocol
+	return ProtocolDNS
 }
 
 func (c *DNSChecker) Check(ctx context.Context, address string) CheckResult {
-	_ = ctx // TODO: figure out context in dns
 	start := time.Now()
-	_, err := net.LookupHost(address)
+
+	resolver := net.Resolver{}
+	_, err := resolver.LookupHost(ctx, address)
 	elapsed := time.Since(start)
 
 	if err != nil {
-		return CheckResult{
-			Success:      false,
-			ResponseTime: elapsed,
-			Error:        err,
-		}
+		return newFailedResult(elapsed, fmt.Errorf("DNS lookup failed: %w", err))
 	}
 
-	return CheckResult{
-		Success:      true,
-		ResponseTime: elapsed,
-		Error:        nil,
-	}
+	return newSuccessResult(elapsed)
 }

@@ -2,40 +2,39 @@ package checkers
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 )
 
 type TCPChecker struct {
-	protocol Protocol
+	timeout time.Duration
+}
+
+func NewTCPChecker() *TCPChecker {
+	return &TCPChecker{
+		timeout: 10 * time.Second,
+	}
 }
 
 func (c *TCPChecker) Protocol() Protocol {
-	return c.protocol
+	return ProtocolTCP
 }
 
 func (c *TCPChecker) Check(ctx context.Context, address string) CheckResult {
 	start := time.Now()
 
 	dialer := net.Dialer{
-		Timeout: 10 * time.Second,
+		Timeout: c.timeout,
 	}
 
 	conn, err := dialer.DialContext(ctx, "tcp", address)
 	elapsed := time.Since(start)
 
 	if err != nil {
-		return CheckResult{
-			Success:      false,
-			ResponseTime: elapsed,
-			Error:        err,
-		}
+		return newFailedResult(elapsed, fmt.Errorf("TCP connection failed: %w", err))
 	}
 	defer conn.Close()
 
-	return CheckResult{
-		Success:      true,
-		ResponseTime: elapsed,
-		Error:        nil,
-	}
+	return newSuccessResult(elapsed)
 }

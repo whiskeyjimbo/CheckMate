@@ -29,14 +29,30 @@ type Checker interface {
 func NewChecker(protocol string) (Checker, error) {
 	switch Protocol(protocol) {
 	case ProtocolTCP:
-		return &TCPChecker{protocol: ProtocolTCP}, nil
+		return NewTCPChecker(), nil
 	case ProtocolHTTP:
-		return NewHTTPChecker(ProtocolHTTP), nil
+		return NewHTTPChecker(), nil
 	case ProtocolSMTP:
-		return &SMTPChecker{protocol: ProtocolSMTP}, nil
+		return NewSMTPChecker(), nil
 	case ProtocolDNS:
-		return &DNSChecker{protocol: ProtocolDNS}, nil
+		return NewDNSChecker(), nil
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", protocol)
+	}
+}
+
+func newFailedResult(duration time.Duration, err error) CheckResult {
+	return CheckResult{
+		Success:      false,
+		ResponseTime: duration,
+		Error:        err,
+	}
+}
+
+func newSuccessResult(duration time.Duration) CheckResult {
+	return CheckResult{
+		Success:      true,
+		ResponseTime: duration,
+		Error:        nil,
 	}
 }
