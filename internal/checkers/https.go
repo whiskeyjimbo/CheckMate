@@ -26,7 +26,8 @@ type HTTPSResult struct {
 func NewHTTPSChecker() *HTTPSChecker {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: false, // Enforce certificate validation
+			InsecureSkipVerify: false,            // Enforce certificate validation
+			MinVersion:         tls.VersionTLS12, // Enforce minimum TLS version G402
 		},
 	}
 

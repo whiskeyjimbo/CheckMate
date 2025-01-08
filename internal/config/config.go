@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -78,7 +79,16 @@ func LoadConfiguration(args []string) (*Config, error) {
 }
 
 func loadConfig(filename string) (*Config, error) {
-	data, err := os.ReadFile(filename)
+	cleanPath := filepath.Clean(filename)
+	if filepath.IsAbs(cleanPath) {
+		return nil, fmt.Errorf("absolute paths are not allowed: %s", filename)
+	}
+
+	if strings.Contains(cleanPath, "..") {
+		return nil, fmt.Errorf("path traversal detected: %s", filename)
+	}
+
+	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return nil, err
 	}

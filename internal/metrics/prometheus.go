@@ -78,12 +78,22 @@ func (p *PrometheusMetrics) initMetrics() {
 }
 
 func StartMetricsServer(logger *zap.SugaredLogger) {
-	http.Handle("/metrics", promhttp.Handler())
-	http.HandleFunc("/health/live", health.LivenessHandler)
-	http.HandleFunc("/health/ready", health.ReadinessHandler)
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	mux.HandleFunc("/health/live", health.LivenessHandler)
+	mux.HandleFunc("/health/ready", health.ReadinessHandler)
+
+	server := &http.Server{
+		Addr:              metricsPort,
+		Handler:           mux,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       30 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
 
 	go func() {
-		if err := http.ListenAndServe(metricsPort, nil); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatalf("Failed to start metrics server: %v", err)
 		}
 	}()
