@@ -14,8 +14,8 @@ const (
 )
 
 type Response struct {
-	Status    string    `json:"status"`
 	Timestamp time.Time `json:"timestamp"`
+	Status    string    `json:"status"`
 }
 
 var isReady atomic.Bool

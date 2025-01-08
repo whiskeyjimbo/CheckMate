@@ -32,25 +32,25 @@ type SiteConfig struct {
 
 type GroupConfig struct {
 	Name     string        `yaml:"name"`
+	RuleMode RuleMode      `yaml:"ruleMode,omitempty"`
 	Tags     []string      `yaml:"tags"`
 	Hosts    []HostConfig  `yaml:"hosts"`
 	Checks   []CheckConfig `yaml:"checks"`
-	RuleMode RuleMode      `yaml:"ruleMode,omitempty"`
 }
 
 type HostConfig struct {
 	Host     string        `yaml:"host"`
+	RuleMode RuleMode      `yaml:"ruleMode,omitempty"`
 	Tags     []string      `yaml:"tags"`
 	Checks   []CheckConfig `yaml:"checks"`
-	RuleMode RuleMode      `yaml:"ruleMode,omitempty"`
 }
 
 type CheckConfig struct {
 	Port       string   `yaml:"port"`
 	Protocol   string   `yaml:"protocol"`
 	Interval   string   `yaml:"interval"`
-	Tags       []string `yaml:"tags"`
 	RuleMode   RuleMode `yaml:"ruleMode,omitempty"`
+	Tags       []string `yaml:"tags"`
 	VerifyCert bool     `yaml:"verifyCert,omitempty"`
 }
 

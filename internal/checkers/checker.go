@@ -17,10 +17,10 @@ const (
 )
 
 type CheckResult struct {
-	Success      bool
-	ResponseTime time.Duration
 	Error        error
 	Metadata     map[string]interface{}
+	ResponseTime time.Duration
+	Success      bool
 }
 
 type Checker interface {

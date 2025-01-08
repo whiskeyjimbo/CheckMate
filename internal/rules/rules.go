@@ -19,16 +19,16 @@ const (
 type Rule struct {
 	Name            string   `yaml:"name"`
 	Type            RuleType `yaml:"type"`
+	Condition       string   `yaml:"condition,omitempty"`
 	Tags            []string `yaml:"tags"`
 	Notifications   []string `yaml:"notifications"`
-	Condition       string   `yaml:"condition,omitempty"`
 	MinDaysValidity int      `yaml:"minDaysValidity,omitempty"`
 }
 
 type RuleResult struct {
-	Satisfied bool
-	Message   string
 	Error     error
+	Message   string
+	Satisfied bool
 }
 
 var (
@@ -37,9 +37,9 @@ var (
 )
 
 type EvaluationParams struct {
+	CertExpiryTime time.Time
 	Downtime       time.Duration
 	ResponseTime   time.Duration
-	CertExpiryTime time.Time
 }
 
 func (r Rule) Validate() error {

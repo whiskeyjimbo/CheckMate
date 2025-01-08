@@ -13,30 +13,30 @@ import (
 
 type MonitoringContext struct {
 	Base    BaseContext
+	Metrics *metrics.PrometheusMetrics
 	Check   config.CheckConfig
 	Rules   []rules.Rule
-	Metrics *metrics.PrometheusMetrics
 }
 
 type BaseContext struct {
 	Ctx         context.Context
 	Logger      *zap.SugaredLogger
-	Site        string
-	Group       config.GroupConfig
-	Tags        []string
 	NotifierMap map[string]notifications.Notifier
+	Group       config.GroupConfig
+	Site        string
+	Tags        []string
 }
 
 type CheckContext struct {
+	Error       error
 	Logger      *zap.SugaredLogger
 	Site        string
 	Group       string
 	Host        string
 	CheckConfig config.CheckConfig
-	Success     bool
-	Error       error
-	Elapsed     time.Duration
 	Tags        []string
+	Elapsed     time.Duration
+	Success     bool
 }
 
 type GroupStats struct {
@@ -48,7 +48,7 @@ type GroupStats struct {
 }
 
 type HostResult struct {
-	Success      bool
-	ResponseTime time.Duration
 	Error        error
+	ResponseTime time.Duration
+	Success      bool
 }

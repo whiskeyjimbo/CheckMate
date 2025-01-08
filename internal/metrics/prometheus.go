@@ -28,8 +28,7 @@ type MetricLabels struct {
 }
 
 type PrometheusMetrics struct {
-	logger      *zap.SugaredLogger
-	monitorSite string
+	logger *zap.SugaredLogger
 
 	// Check metrics
 	checkStatus  *prometheus.GaugeVec
@@ -44,6 +43,7 @@ type PrometheusMetrics struct {
 
 	// Certificate metrics
 	certExpiryDays *prometheus.GaugeVec
+	monitorSite    string
 }
 
 type GroupMetrics struct {
