@@ -10,14 +10,15 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 ## Features
 
 ### Core Features
-- Multi-protocol support (TCP, HTTP, SMTP, DNS)
+- Multi-protocol support (TCP, HTTP, HTTPS with cert validation, SMTP, DNS)
 - Hierarchical configuration (Sites → Groups → Hosts → Checks)
 - High availability monitoring with configurable modes
 - Configurable check intervals per service
 - Prometheus metrics integration
-- Rule-based monitoring with custom conditions
+- Simple Rule-based monitoring with custom conditions
 - Flexible notification system
 - Service tagging system
+- TLS certificate expiration monitoring
 
 ### High Availability Monitoring
 
@@ -59,6 +60,7 @@ Rule modes can be configured at three levels (in order of precedence):
   - `interval`: Check frequency (e.g., "30s", "1m")
   - `tags`: Check-specific tags
   - `ruleMode`: Override group's rule mode
+  - `verifyCert`: Enable certificate checking
 - `ruleMode`: Group-level rule mode ("all" or "any")
 
 ### Rule Configuration
@@ -69,6 +71,12 @@ Rule modes can be configured at three levels (in order of precedence):
 
 ### Notification Configuration
 - `type`: Notification type ("log", more coming soon)
+
+### Certificate Rule Configuration
+- `name`: Rule identifier
+- `minDaysValidity`: Number of days before expiration to trigger alert
+- `tags`: Tags to match against groups/checks
+- `notifications`: Notification types to use
 
 ## Metrics
 
@@ -91,6 +99,7 @@ CheckMate exposes Prometheus metrics at `:9100/metrics`:
 - `checkmate_check_latency_milliseconds_histogram`: Response time distribution
 - `checkmate_hosts_up`: Number of hosts up in a group (per port/protocol)
 - `checkmate_hosts_total`: Total number of hosts in a group (per port/protocol)
+- `checkmate_cert_expiry_days`: Days until certificate expiration
 
 ### Graph Visualization Metrics (In Development)
 > Note: These metrics are designed for Grafana's Node Graph visualization and are currently in flux
@@ -155,12 +164,12 @@ All health check endpoints are served on port 9100 alongside metrics.
 
 ## Roadmap
 
-- [ ] Additional protocol support (HTTPS, TLS verification)
 - [ ] Notification system expansion (Slack, Email)
 - [ ] Configurable notification thresholds
 - [ ] Database support for historical data
 - [ ] Docker container
 - [ ] Web UI for monitoring (MAYBE)
+- [x] Additional protocol support (HTTPS, TLS verification)
 - [x] Kubernetes readiness/liveness probe support
 - [x] Multiple host monitoring
 - [x] Multi-protocol per host
