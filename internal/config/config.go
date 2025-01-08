@@ -55,8 +55,15 @@ type CheckConfig struct {
 	VerifyCert bool     `yaml:"verifyCert,omitempty"`
 }
 
+type SlackConfig struct {
+	WebhookURL string `yaml:"webhookURL"`
+	Channel    string `yaml:"channel,omitempty"`  // Optional override
+	Username   string `yaml:"username,omitempty"` // Optional override
+}
+
 type NotificationConfig struct {
-	Type string `yaml:"type"`
+	Type  string      `yaml:"type"`
+	Slack SlackConfig `yaml:"slack,omitempty"`
 }
 
 func LoadConfiguration(args []string) (*Config, error) {

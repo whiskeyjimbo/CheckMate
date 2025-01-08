@@ -16,17 +16,17 @@ const (
 	// EmailNotification NotificationType = "email"
 )
 
-type NotificationLevel string
+type Level string
 
 const (
-	InfoLevel    NotificationLevel = "info"
-	WarningLevel NotificationLevel = "warning"
-	ErrorLevel   NotificationLevel = "error"
+	InfoLevel    Level = "info"
+	WarningLevel Level = "warning"
+	ErrorLevel   Level = "error"
 )
 
 type Notification struct {
 	Message  string
-	Level    NotificationLevel
+	Level    Level
 	Tags     []string
 	Site     string
 	Group    string

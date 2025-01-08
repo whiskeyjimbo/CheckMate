@@ -28,7 +28,7 @@ func BuildMessage(rule rules.Rule, result rules.RuleResult, mode config.RuleMode
 	return fmt.Sprintf("Rule condition met: %s%s", rule.Name, modeInfo)
 }
 
-func GetLevel(result rules.RuleResult) NotificationLevel {
+func GetLevel(result rules.RuleResult) Level {
 	if result.Error != nil {
 		return ErrorLevel
 	}
