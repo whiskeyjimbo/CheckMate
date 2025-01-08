@@ -13,7 +13,7 @@ func NewSMTPChecker() *SMTPChecker {
 }
 
 func (c *SMTPChecker) Protocol() Protocol {
-	return ProtocolSMTP
+	return SMTP
 }
 
 func (c *SMTPChecker) Check(ctx context.Context, address string) CheckResult {

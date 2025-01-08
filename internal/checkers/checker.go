@@ -9,16 +9,18 @@ import (
 type Protocol string
 
 const (
-	ProtocolTCP  Protocol = "TCP"
-	ProtocolHTTP Protocol = "HTTP"
-	ProtocolSMTP Protocol = "SMTP"
-	ProtocolDNS  Protocol = "DNS"
+	TCP   Protocol = "TCP"
+	HTTP  Protocol = "HTTP"
+	HTTPS Protocol = "HTTPS"
+	SMTP  Protocol = "SMTP"
+	DNS   Protocol = "DNS"
 )
 
 type CheckResult struct {
 	Success      bool
 	ResponseTime time.Duration
 	Error        error
+	Metadata     map[string]interface{}
 }
 
 type Checker interface {
@@ -26,15 +28,17 @@ type Checker interface {
 	Protocol() Protocol
 }
 
-func NewChecker(protocol string) (Checker, error) {
-	switch Protocol(protocol) {
-	case ProtocolTCP:
+func NewChecker(protocol Protocol) (Checker, error) {
+	switch protocol {
+	case TCP:
 		return NewTCPChecker(), nil
-	case ProtocolHTTP:
+	case HTTP:
 		return NewHTTPChecker(), nil
-	case ProtocolSMTP:
+	case HTTPS:
+		return NewHTTPSChecker(), nil
+	case SMTP:
 		return NewSMTPChecker(), nil
-	case ProtocolDNS:
+	case DNS:
 		return NewDNSChecker(), nil
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", protocol)

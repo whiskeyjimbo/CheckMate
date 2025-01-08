@@ -18,6 +18,7 @@ type Rule struct {
 
 type RuleResult struct {
 	Satisfied bool
+	Message   string
 	Error     error
 }
 

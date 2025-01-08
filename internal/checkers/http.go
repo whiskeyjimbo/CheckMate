@@ -20,7 +20,7 @@ func NewHTTPChecker() *HTTPChecker {
 }
 
 func (c *HTTPChecker) Protocol() Protocol {
-	return ProtocolHTTP
+	return HTTP
 }
 
 func (c *HTTPChecker) Check(ctx context.Context, address string) CheckResult {

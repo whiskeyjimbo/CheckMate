@@ -14,7 +14,7 @@ func NewDNSChecker() *DNSChecker {
 }
 
 func (c *DNSChecker) Protocol() Protocol {
-	return ProtocolDNS
+	return DNS
 }
 
 func (c *DNSChecker) Check(ctx context.Context, address string) CheckResult {

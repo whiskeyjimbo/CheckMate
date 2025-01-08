@@ -14,7 +14,7 @@ func MonitorGroup(mc MonitoringContext) {
 		mc.Logger.Fatal(err)
 	}
 
-	checker, err := checkers.NewChecker(mc.Check.Protocol)
+	checker, err := checkers.NewChecker(checkers.Protocol(mc.Check.Protocol))
 	if err != nil {
 		mc.Logger.Fatal(err)
 	}

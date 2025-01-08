@@ -22,6 +22,7 @@ type Config struct {
 	Sites         []SiteConfig         `yaml:"sites"`
 	Rules         []rules.Rule         `yaml:"rules"`
 	Notifications []NotificationConfig `yaml:"notifications"`
+	CertRules     []rules.CertRule     `yaml:"certRules"`
 }
 
 type SiteConfig struct {
@@ -46,11 +47,12 @@ type HostConfig struct {
 }
 
 type CheckConfig struct {
-	Port     string   `yaml:"port"`
-	Protocol string   `yaml:"protocol"`
-	Interval string   `yaml:"interval"`
-	Tags     []string `yaml:"tags"`
-	RuleMode RuleMode `yaml:"ruleMode,omitempty"`
+	Port       string   `yaml:"port"`
+	Protocol   string   `yaml:"protocol"`
+	Interval   string   `yaml:"interval"`
+	Tags       []string `yaml:"tags"`
+	RuleMode   RuleMode `yaml:"ruleMode,omitempty"`
+	VerifyCert bool     `yaml:"verifyCert,omitempty"`
 }
 
 type NotificationConfig struct {

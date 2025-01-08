@@ -52,9 +52,10 @@ sites:
             tags: ["primary"]
         checks:
           - port: "443"
-            protocol: HTTP
+            protocol: HTTPS
             interval: "10s"
             tags: ["https-api"]
+            verifyCert: true  # Enable certificate checking
           - port: "9100"
             protocol: HTTP
             interval: "30s"
@@ -104,3 +105,14 @@ notifications:
   #   smtp_server: "smtp.example.com"
   #   from: "alerts@example.com"
   #   to: ["ops@example.com"]
+
+certRules:
+  - name: "cert_expiring_soon"
+    minDaysValidity: 30
+    tags: ["https-api"]
+    notifications: ["log"]
+
+  - name: "cert_critical"
+    minDaysValidity: 7
+    tags: ["https-api", "critical"]
+    notifications: ["log"]

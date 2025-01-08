@@ -9,6 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/whiskeyjimbo/CheckMate/internal/checkers"
 	"github.com/whiskeyjimbo/CheckMate/internal/health"
 	"go.uber.org/zap"
 )
@@ -40,6 +41,9 @@ type PrometheusMetrics struct {
 	edgeInfo   *prometheus.GaugeVec
 	hostsUp    *prometheus.GaugeVec
 	hostsTotal *prometheus.GaugeVec
+
+	// Certificate metrics
+	certExpiryDays *prometheus.GaugeVec
 }
 
 type GroupMetrics struct {
@@ -73,6 +77,16 @@ func (p *PrometheusMetrics) initMetrics() {
 	p.nodeInfo = createNodeMetric()
 	p.edgeInfo = createEdgeMetric()
 	p.hostsUp, p.hostsTotal = createHostCountMetrics()
+
+	// Certificate metrics
+	p.certExpiryDays = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "cert_expiry_days",
+			Help:      "Days until certificate expiration",
+		},
+		[]string{"site", "group", "host", "port", "issuer"},
+	)
 }
 
 func StartMetricsServer(logger *zap.SugaredLogger) {
@@ -233,4 +247,19 @@ func boolToInt(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+func (p *PrometheusMetrics) UpdateCertificate(site, group, host, port string, certInfo *checkers.CertInfo) {
+	if certInfo == nil {
+		return
+	}
+
+	daysUntilExpiry := time.Until(certInfo.ExpiresAt).Hours() / 24
+	p.certExpiryDays.With(prometheus.Labels{
+		"site":   site,
+		"group":  group,
+		"host":   host,
+		"port":   port,
+		"issuer": certInfo.IssuedBy,
+	}).Set(daysUntilExpiry)
 }

@@ -18,7 +18,7 @@ func NewTCPChecker() *TCPChecker {
 }
 
 func (c *TCPChecker) Protocol() Protocol {
-	return ProtocolTCP
+	return TCP
 }
 
 func (c *TCPChecker) Check(ctx context.Context, address string) CheckResult {
