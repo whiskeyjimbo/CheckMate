@@ -53,6 +53,7 @@ type CheckConfig struct {
 	Tags       []string `yaml:"tags"`
 	RuleMode   RuleMode `yaml:"ruleMode,omitempty"`
 	VerifyCert bool     `yaml:"verifyCert,omitempty"`
+	Command    string   `yaml:"command,omitempty"`
 }
 
 type NotificationConfig struct {

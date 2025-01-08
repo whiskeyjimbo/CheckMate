@@ -14,6 +14,7 @@ const (
 	HTTPS Protocol = "HTTPS"
 	SMTP  Protocol = "SMTP"
 	DNS   Protocol = "DNS"
+	CMD   Protocol = "CMD"
 )
 
 type CheckResult struct {
@@ -40,6 +41,8 @@ func NewChecker(protocol Protocol) (Checker, error) {
 		return NewSMTPChecker(), nil
 	case DNS:
 		return NewDNSChecker(), nil
+	case CMD:
+		return NewCMDChecker(), nil
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", protocol)
 	}
