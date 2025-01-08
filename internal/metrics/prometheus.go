@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/whiskeyjimbo/CheckMate/pkg/health"
+	"github.com/whiskeyjimbo/CheckMate/internal/health"
 	"go.uber.org/zap"
 )
 

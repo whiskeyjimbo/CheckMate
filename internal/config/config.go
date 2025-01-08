@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/whiskeyjimbo/CheckMate/pkg/rules"
+	"github.com/whiskeyjimbo/CheckMate/internal/rules"
 	"gopkg.in/yaml.v2"
 )
 
