@@ -76,23 +76,39 @@ sites:
 
 rules:
   - name: "api_high_latency"
-    condition: "responseTime > 500"  # milliseconds
+    type: "standard"
+    condition: "responseTime > 500"
     tags: ["http-api", "https-api"]
     notifications: ["log"]
 
   - name: "api_critical_downtime"
-    condition: "downtime > 30s"  # seconds
+    type: "standard"
+    condition: "downtime > 30s"
     tags: ["service-api", "critical"]
     notifications: ["log"]
 
   - name: "db_downtime_warning"
-    condition: "downtime > 10s"  # seconds
+    type: "standard"
+    condition: "downtime > 10s"
     tags: ["service-db"]
     notifications: ["log"]
 
   - name: "prod_service_degraded"
-    condition: "responseTime > 1000 || downtime > 0" 
+    type: "standard"
+    condition: "responseTime > 1000 || downtime > 0"
     tags: ["prod", "critical"]
+    notifications: ["log"]
+
+  - name: "cert_expiring_soon"
+    type: "cert"
+    minDaysValidity: 30
+    tags: ["https-api"]
+    notifications: ["log"]
+
+  - name: "cert_critical"
+    type: "cert"
+    minDaysValidity: 7
+    tags: ["https-api", "critical"]
     notifications: ["log"]
 
 notifications:
@@ -105,14 +121,3 @@ notifications:
   #   smtp_server: "smtp.example.com"
   #   from: "alerts@example.com"
   #   to: ["ops@example.com"]
-
-certRules:
-  - name: "cert_expiring_soon"
-    minDaysValidity: 30
-    tags: ["https-api"]
-    notifications: ["log"]
-
-  - name: "cert_critical"
-    minDaysValidity: 7
-    tags: ["https-api", "critical"]
-    notifications: ["log"]

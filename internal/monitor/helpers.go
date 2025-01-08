@@ -106,7 +106,11 @@ func processRule(
 	ruleModeResolver *config.RuleModeResolver,
 	failingHosts []string,
 ) {
-	ruleResult := rules.EvaluateRule(rule, downtime, stats.AvgResponseTime)
+	params := rules.EvaluationParams{
+		Downtime:     downtime,
+		ResponseTime: stats.AvgResponseTime,
+	}
+	ruleResult := rules.EvaluateRule(rule, params)
 	if !shouldSendNotification(ruleResult) {
 		return
 	}
