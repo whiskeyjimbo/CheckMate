@@ -2,7 +2,9 @@ package checkers
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -87,7 +89,28 @@ func (c *CMDChecker) getSSHConfig() (*ssh.ClientConfig, error) {
 	return &ssh.ClientConfig{
 		User:            os.Getenv("SSH_USER"),
 		Auth:            auth,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: trustedHostKeyCallback(os.Getenv("SSH_TRUSTED_KEY")),
 		Timeout:         10 * time.Second,
 	}, nil
+}
+
+func keyString(k ssh.PublicKey) string {
+	return k.Type() + " " + base64.StdEncoding.EncodeToString(k.Marshal())
+}
+
+func trustedHostKeyCallback(trustedKey string) ssh.HostKeyCallback {
+	if trustedKey == "" {
+		return func(_ string, _ net.Addr, k ssh.PublicKey) error {
+			log.Printf("WARNING: SSH-key verification is *NOT* in effect: to fix, add this trustedKey: %q", keyString(k))
+			return nil
+		}
+	}
+
+	return func(_ string, _ net.Addr, k ssh.PublicKey) error {
+		ks := keyString(k)
+		if trustedKey != ks {
+			return fmt.Errorf("SSH-key verification: expected %q but got %q", trustedKey, ks)
+		}
+		return nil
+	}
 }
