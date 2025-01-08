@@ -64,19 +64,37 @@ Rule modes can be configured at three levels (in order of precedence):
 - `ruleMode`: Group-level rule mode ("all" or "any")
 
 ### Rule Configuration
+Rules define conditions for generating notifications. Each rule requires a `type` field:
+
+```yaml
+# Standard Rule Example
+- name: "prod_service_degraded"
+  type: "standard"
+  condition: "responseTime > 1000 || downtime > 0"
+  tags: ["prod", "critical"]
+  notifications: ["log"]
+# Certificate Rule Example
+- name: "cert_expiring_soon"
+  type: "cert"
+  minDaysValidity: 30
+  tags: ["https-api"]
+  notifications: ["log"]
+```
+
+Common Fields:
 - `name`: Rule identifier
-- `condition`: Expression using `downtime` and `responseTime` variables
-- `tags`: Tags to match against groups
+- `type`: Either "standard" or "cert"
+- `tags`: Tags to match against groups/checks
 - `notifications`: Notification types to use
+
+Type-specific Fields:
+- Standard Rules:
+  - `condition`: Expression using `downtime` and `responseTime` variables
+- Certificate Rules:
+  - `minDaysValidity`: Days before expiration to trigger alert
 
 ### Notification Configuration
 - `type`: Notification type ("log", more coming soon)
-
-### Certificate Rule Configuration
-- `name`: Rule identifier
-- `minDaysValidity`: Number of days before expiration to trigger alert
-- `tags`: Tags to match against groups/checks
-- `notifications`: Notification types to use
 
 ## Metrics
 
