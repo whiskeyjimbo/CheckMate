@@ -1,16 +1,16 @@
-monitorSite: "sol"
+monitorSite: "${MONITOR_SITE:-sol}"  # Uses "sol" as default if MONITOR_SITE is not set
 
 sites:
-  - name: "mars-lab"
-    tags: ["region-mars", "dev"]
+  - name: "${SITE_NAME:-mars-lab}"
+    tags: ["region-${REGION:-mars}", "env-${ENV:-dev}"]
     groups:
       - name: "api-service"
         tags: ["service-api", "critical"]
         ruleMode: "any"  # Override default "all" mode for this group
         hosts:
-          - host: "api-1.mars.lab"
+          - host: "${API_HOST_1:-api-1.mars.lab}"
             tags: ["primary"]
-          - host: "api-2.mars.lab"
+          - host: "${API_HOST_2:-api-2.mars.lab}"
             tags: ["primary"]
           - host: "api-3.mars.lab"
             tags: ["backup"]

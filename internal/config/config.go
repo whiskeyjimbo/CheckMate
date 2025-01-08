@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/drone/envsubst"
 	"github.com/whiskeyjimbo/CheckMate/internal/rules"
 	"gopkg.in/yaml.v2"
 )
@@ -84,17 +85,19 @@ func loadConfig(filename string) (*Config, error) {
 		return nil, fmt.Errorf("absolute paths are not allowed: %s", filename)
 	}
 
-	if strings.Contains(cleanPath, "..") {
-		return nil, fmt.Errorf("path traversal detected: %s", filename)
-	}
-
 	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return nil, err
 	}
 
+	// Use envsubst to handle environment variable substitution
+	expandedData, err := envsubst.EvalEnv(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to substitute environment variables: %w", err)
+	}
+
 	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	if err := yaml.Unmarshal([]byte(expandedData), &config); err != nil {
 		return nil, err
 	}
 

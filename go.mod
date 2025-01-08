@@ -3,6 +3,7 @@ module github.com/whiskeyjimbo/CheckMate
 go 1.23.4
 
 require (
+	github.com/drone/envsubst v1.0.3
 	github.com/expr-lang/expr v1.16.9
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/zap v1.27.0
