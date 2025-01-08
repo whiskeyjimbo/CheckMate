@@ -30,3 +30,10 @@ func HasMatching(allTags, ruleTags []string) bool {
 	}
 	return false
 }
+
+func MergeTags(tags1, tags2 []string) []string {
+	merged := make([]string, 0, len(tags1)+len(tags2))
+	merged = append(merged, tags1...)
+	merged = append(merged, tags2...)
+	return merged
+}

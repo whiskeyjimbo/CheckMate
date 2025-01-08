@@ -12,13 +12,17 @@ import (
 )
 
 type MonitoringContext struct {
+	Base    BaseContext
+	Check   config.CheckConfig
+	Rules   []rules.Rule
+	Metrics *metrics.PrometheusMetrics
+}
+
+type BaseContext struct {
 	Ctx         context.Context
 	Logger      *zap.SugaredLogger
 	Site        string
 	Group       config.GroupConfig
-	Check       config.CheckConfig
-	Metrics     *metrics.PrometheusMetrics
-	Rules       []rules.Rule
 	Tags        []string
 	NotifierMap map[string]notifications.Notifier
 }

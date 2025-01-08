@@ -16,9 +16,9 @@ import (
 func performHostChecks(mc MonitoringContext, checker checkers.Checker) map[string]HostResult {
 	hostResults := make(map[string]HostResult)
 
-	for _, host := range mc.Group.Hosts {
+	for _, host := range mc.Base.Group.Hosts {
 		address := fmt.Sprintf("%s:%s", host.Host, mc.Check.Port)
-		checkCtx, checkCancel := context.WithTimeout(mc.Ctx, 10*time.Second)
+		checkCtx, checkCancel := context.WithTimeout(mc.Base.Ctx, 10*time.Second)
 		result := checker.Check(checkCtx, address)
 		checkCancel()
 
@@ -29,15 +29,15 @@ func performHostChecks(mc MonitoringContext, checker checkers.Checker) map[strin
 		}
 
 		logCheckResult(CheckContext{
-			Logger:      mc.Logger,
-			Site:        mc.Site,
-			Group:       mc.Group.Name,
+			Logger:      mc.Base.Logger,
+			Site:        mc.Base.Site,
+			Group:       mc.Base.Group.Name,
 			Host:        host.Host,
 			CheckConfig: mc.Check,
 			Success:     result.Success,
 			Error:       result.Error,
 			Elapsed:     result.ResponseTime,
-			Tags:        mc.Tags,
+			Tags:        mc.Base.Tags,
 		})
 	}
 
@@ -79,7 +79,7 @@ func processRules(
 	failingHosts := getFailingHosts(hostResults)
 
 	for _, rule := range mc.Rules {
-		if !tags.HasMatching(mc.Tags, rule.Tags) {
+		if !tags.HasMatching(mc.Base.Tags, rule.Tags) {
 			continue
 		}
 
@@ -144,7 +144,7 @@ func sendIndividualNotifications(
 ) {
 	for _, failingHost := range failingHosts {
 		notification := createNotification(mc, rule, ruleResult, effectiveMode, stats, failingHost)
-		notifications.SendRuleNotifications(mc.Ctx, rule, notification, mc.NotifierMap)
+		notifications.SendRuleNotifications(mc.Base.Ctx, rule, notification, mc.Base.NotifierMap)
 	}
 }
 
@@ -157,7 +157,7 @@ func sendGroupNotification(
 	failingHosts []string,
 ) {
 	notification := createNotification(mc, rule, ruleResult, effectiveMode, stats, strings.Join(failingHosts, ","))
-	notifications.SendRuleNotifications(mc.Ctx, rule, notification, mc.NotifierMap)
+	notifications.SendRuleNotifications(mc.Base.Ctx, rule, notification, mc.Base.NotifierMap)
 }
 
 func createNotification(
@@ -171,9 +171,9 @@ func createNotification(
 	return notifications.Notification{
 		Message:  notifications.BuildMessage(rule, ruleResult, effectiveMode, stats.SuccessfulChecks, stats.TotalHosts),
 		Level:    notifications.GetLevel(ruleResult),
-		Tags:     mc.Tags,
-		Site:     mc.Site,
-		Group:    mc.Group.Name,
+		Tags:     mc.Base.Tags,
+		Site:     mc.Base.Site,
+		Group:    mc.Base.Group.Name,
 		Port:     mc.Check.Port,
 		Protocol: string(mc.Check.Protocol),
 		Host:     host,

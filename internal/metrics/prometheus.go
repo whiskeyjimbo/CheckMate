@@ -68,25 +68,13 @@ func NewPrometheusMetrics(logger *zap.SugaredLogger, monitorSite string) *Promet
 }
 
 func (p *PrometheusMetrics) initMetrics() {
-	// init the check metrics
-	p.checkStatus = createGauge("check_success", "Status of the check (1 for success, 0 for failure)")
-	p.checkLatency = createGauge("check_latency_milliseconds", "Check duration in milliseconds")
-	p.latencyHist = createHistogram("check_latency_milliseconds_histogram", "Check duration distribution")
-
-	// Graph metrics for Grafana Network Graph Visualization
+	p.checkStatus = createCheckStatusMetric()
+	p.checkLatency = createCheckLatencyMetric()
+	p.latencyHist = createLatencyHistogram()
+	p.hostsUp, p.hostsTotal = createHostCountMetrics()
 	p.nodeInfo = createNodeMetric()
 	p.edgeInfo = createEdgeMetric()
-	p.hostsUp, p.hostsTotal = createHostCountMetrics()
-
-	// Certificate metrics
-	p.certExpiryDays = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "cert_expiry_days",
-			Help:      "Days until certificate expiration",
-		},
-		[]string{"site", "group", "host", "port", "issuer"},
-	)
+	p.certExpiryDays = createCertExpiryMetric()
 }
 
 func StartMetricsServer(logger *zap.SugaredLogger) {
@@ -262,4 +250,49 @@ func (p *PrometheusMetrics) UpdateCertificate(site, group, host, port string, ce
 		"port":   port,
 		"issuer": certInfo.IssuedBy,
 	}).Set(daysUntilExpiry)
+}
+
+func createCheckStatusMetric() *prometheus.GaugeVec {
+	return promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "check_status",
+			Help:      "Status of the check (1 for up, 0 for down)",
+		},
+		[]string{"site", "group", "host", "port", "protocol", "tags"},
+	)
+}
+
+func createCheckLatencyMetric() *prometheus.GaugeVec {
+	return promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "check_latency_seconds",
+			Help:      "Latency of the check in seconds",
+		},
+		[]string{"site", "group", "host", "port", "protocol", "tags"},
+	)
+}
+
+func createLatencyHistogram() *prometheus.HistogramVec {
+	return promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: namespace,
+			Name:      "check_latency_histogram_seconds",
+			Help:      "Histogram of check latencies",
+			Buckets:   prometheus.DefBuckets,
+		},
+		[]string{"site", "group", "port", "protocol", "tags"},
+	)
+}
+
+func createCertExpiryMetric() *prometheus.GaugeVec {
+	return promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "cert_expiry_days",
+			Help:      "Days until certificate expiration",
+		},
+		[]string{"site", "group", "host", "port", "issuer"},
+	)
 }

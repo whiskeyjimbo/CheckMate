@@ -56,15 +56,17 @@ func startMonitoring(
 				go func(site string, group config.GroupConfig, check config.CheckConfig, tags []string) {
 					defer wg.Done()
 					mc := monitor.MonitoringContext{
-						Ctx:         ctx,
-						Logger:      logger,
-						Site:        site,
-						Group:       group,
-						Check:       check,
-						Metrics:     metrics,
-						Rules:       cfg.Rules,
-						Tags:        tags,
-						NotifierMap: notifierMap,
+						Base: monitor.BaseContext{
+							Ctx:         ctx,
+							Logger:      logger,
+							Site:        site,
+							Group:       group,
+							Tags:        tags,
+							NotifierMap: notifierMap,
+						},
+						Check:   check,
+						Metrics: metrics,
+						Rules:   cfg.Rules,
 					}
 					monitor.MonitorGroup(mc)
 				}(site.Name, group, checkConfig, combinedTags)
