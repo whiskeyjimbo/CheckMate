@@ -42,6 +42,18 @@ type PrometheusMetrics struct {
 	hostsTotal *prometheus.GaugeVec
 }
 
+type GroupMetrics struct {
+	Site         string
+	Group        string
+	Port         string
+	Protocol     string
+	Tags         []string
+	Success      bool
+	ResponseTime time.Duration
+	HostsUp      int
+	HostsTotal   int
+}
+
 func NewPrometheusMetrics(logger *zap.SugaredLogger, monitorSite string) *PrometheusMetrics {
 	p := &PrometheusMetrics{
 		logger:      logger,
@@ -75,15 +87,15 @@ func StartMetricsServer(logger *zap.SugaredLogger) {
 	}()
 }
 
-func (p *PrometheusMetrics) UpdateGroup(site, group, port, protocol string, tags []string, success bool, responseTime time.Duration, hostsUp, hostsTotal int) {
+func (p *PrometheusMetrics) UpdateGroup(metrics GroupMetrics) {
 	labels := MetricLabels{
-		Site:     site,
-		Group:    group,
-		Port:     port,
-		Protocol: protocol,
+		Site:     metrics.Site,
+		Group:    metrics.Group,
+		Port:     metrics.Port,
+		Protocol: metrics.Protocol,
 	}
-	p.updateMetrics(labels, tags, success, responseTime)
-	p.updateGroupCounts(site, group, port, protocol, hostsUp, hostsTotal)
+	p.updateMetrics(labels, metrics.Tags, metrics.Success, metrics.ResponseTime)
+	p.updateGroupCounts(metrics.Site, metrics.Group, metrics.Port, metrics.Protocol, metrics.HostsUp, metrics.HostsTotal)
 }
 
 func (p *PrometheusMetrics) updateMetrics(labels MetricLabels, tags []string, success bool, elapsed time.Duration) {

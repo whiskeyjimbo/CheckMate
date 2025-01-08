@@ -5,6 +5,7 @@ import (
 
 	"github.com/whiskeyjimbo/CheckMate/internal/checkers"
 	"github.com/whiskeyjimbo/CheckMate/internal/config"
+	"github.com/whiskeyjimbo/CheckMate/internal/metrics"
 )
 
 func MonitorGroup(mc MonitoringContext) {
@@ -31,17 +32,17 @@ func MonitorGroup(mc MonitoringContext) {
 			hostResults := performHostChecks(mc, checker)
 			stats := calculateGroupStats(hostResults)
 
-			mc.Metrics.UpdateGroup(
-				mc.Site,
-				mc.Group.Name,
-				mc.Check.Port,
-				string(mc.Check.Protocol),
-				mc.Tags,
-				!stats.AllDown,
-				stats.AvgResponseTime,
-				stats.SuccessfulChecks,
-				stats.TotalHosts,
-			)
+			mc.Metrics.UpdateGroup(metrics.GroupMetrics{
+				Site:         mc.Site,
+				Group:        mc.Group.Name,
+				Port:         mc.Check.Port,
+				Protocol:     string(mc.Check.Protocol),
+				Tags:         mc.Tags,
+				Success:      !stats.AllDown,
+				ResponseTime: stats.AvgResponseTime,
+				HostsUp:      stats.SuccessfulChecks,
+				HostsTotal:   stats.TotalHosts,
+			})
 
 			shouldUpdateDowntime := ruleModeResolver.ShouldTrigger(stats.AnyDown, stats.AllDown, mc.Check)
 			downtime = updateDowntime(downtime, interval, !shouldUpdateDowntime)

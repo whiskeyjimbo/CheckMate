@@ -76,53 +76,107 @@ func processRules(
 	ruleModeResolver *config.RuleModeResolver,
 	hostResults map[string]HostResult,
 ) {
-	var failingHosts []string
-	for host, result := range hostResults {
-		if !result.Success {
-			failingHosts = append(failingHosts, host)
-		}
-	}
+	failingHosts := getFailingHosts(hostResults)
 
 	for _, rule := range mc.Rules {
 		if !tags.HasMatching(mc.Tags, rule.Tags) {
 			continue
 		}
 
-		ruleResult := rules.EvaluateRule(rule, downtime, stats.AvgResponseTime)
-		if ruleResult.Error != nil || ruleResult.Satisfied {
-			effectiveMode := ruleModeResolver.GetEffectiveRuleMode(mc.Check)
-
-			if effectiveMode == config.RuleModeAny {
-				// Send individual notifications for each failing host
-				for _, failingHost := range failingHosts {
-					notification := notifications.Notification{
-						Message:  notifications.BuildMessage(rule, ruleResult, effectiveMode, stats.SuccessfulChecks, stats.TotalHosts),
-						Level:    notifications.GetLevel(ruleResult),
-						Tags:     mc.Tags,
-						Site:     mc.Site,
-						Group:    mc.Group.Name,
-						Port:     mc.Check.Port,
-						Protocol: string(mc.Check.Protocol),
-						Host:     failingHost,
-					}
-					notifications.SendRuleNotifications(mc.Ctx, rule, notification, mc.NotifierMap)
-				}
-			} else {
-				// Send single group-level notification
-				notification := notifications.Notification{
-					Message:  notifications.BuildMessage(rule, ruleResult, effectiveMode, stats.SuccessfulChecks, stats.TotalHosts),
-					Level:    notifications.GetLevel(ruleResult),
-					Tags:     mc.Tags,
-					Site:     mc.Site,
-					Group:    mc.Group.Name,
-					Port:     mc.Check.Port,
-					Protocol: string(mc.Check.Protocol),
-					Host:     strings.Join(failingHosts, ","),
-				}
-				notifications.SendRuleNotifications(mc.Ctx, rule, notification, mc.NotifierMap)
-			}
-		}
+		processRule(mc, rule, stats, downtime, ruleModeResolver, failingHosts)
 		lastRuleEval[rule.Name] = time.Now()
+	}
+}
+
+func getFailingHosts(hostResults map[string]HostResult) []string {
+	var failingHosts []string
+	for host, result := range hostResults {
+		if !result.Success {
+			failingHosts = append(failingHosts, host)
+		}
+	}
+	return failingHosts
+}
+
+func processRule(
+	mc MonitoringContext,
+	rule rules.Rule,
+	stats GroupStats,
+	downtime time.Duration,
+	ruleModeResolver *config.RuleModeResolver,
+	failingHosts []string,
+) {
+	ruleResult := rules.EvaluateRule(rule, downtime, stats.AvgResponseTime)
+	if !shouldSendNotification(ruleResult) {
+		return
+	}
+
+	effectiveMode := ruleModeResolver.GetEffectiveRuleMode(mc.Check)
+	sendNotifications(mc, rule, ruleResult, effectiveMode, stats, failingHosts)
+}
+
+func shouldSendNotification(result rules.RuleResult) bool {
+	return result.Error != nil || result.Satisfied
+}
+
+func sendNotifications(
+	mc MonitoringContext,
+	rule rules.Rule,
+	ruleResult rules.RuleResult,
+	effectiveMode config.RuleMode,
+	stats GroupStats,
+	failingHosts []string,
+) {
+	if effectiveMode == config.RuleModeAny {
+		sendIndividualNotifications(mc, rule, ruleResult, effectiveMode, stats, failingHosts)
+	} else {
+		sendGroupNotification(mc, rule, ruleResult, effectiveMode, stats, failingHosts)
+	}
+}
+
+func sendIndividualNotifications(
+	mc MonitoringContext,
+	rule rules.Rule,
+	ruleResult rules.RuleResult,
+	effectiveMode config.RuleMode,
+	stats GroupStats,
+	failingHosts []string,
+) {
+	for _, failingHost := range failingHosts {
+		notification := createNotification(mc, rule, ruleResult, effectiveMode, stats, failingHost)
+		notifications.SendRuleNotifications(mc.Ctx, rule, notification, mc.NotifierMap)
+	}
+}
+
+func sendGroupNotification(
+	mc MonitoringContext,
+	rule rules.Rule,
+	ruleResult rules.RuleResult,
+	effectiveMode config.RuleMode,
+	stats GroupStats,
+	failingHosts []string,
+) {
+	notification := createNotification(mc, rule, ruleResult, effectiveMode, stats, strings.Join(failingHosts, ","))
+	notifications.SendRuleNotifications(mc.Ctx, rule, notification, mc.NotifierMap)
+}
+
+func createNotification(
+	mc MonitoringContext,
+	rule rules.Rule,
+	ruleResult rules.RuleResult,
+	effectiveMode config.RuleMode,
+	stats GroupStats,
+	host string,
+) notifications.Notification {
+	return notifications.Notification{
+		Message:  notifications.BuildMessage(rule, ruleResult, effectiveMode, stats.SuccessfulChecks, stats.TotalHosts),
+		Level:    notifications.GetLevel(ruleResult),
+		Tags:     mc.Tags,
+		Site:     mc.Site,
+		Group:    mc.Group.Name,
+		Port:     mc.Check.Port,
+		Protocol: string(mc.Check.Protocol),
+		Host:     host,
 	}
 }
 
