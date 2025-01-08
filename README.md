@@ -21,16 +21,22 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 
 ### High Availability Monitoring
 
-Groups support two monitoring modes that can be configured at group or check level:
+Groups support two monitoring modes that can be configured at different levels:
 
 - **All Mode (Default)**
   - Group is considered "up" if any host is responding
   - Rules only trigger when all hosts are down
-  - Ideal for redundant services
+  - For redundant services where one available host is sufficient
 
 - **Any Mode**
+  - Group monitoring tracks all hosts individually
   - Rules trigger when any host goes down
-  - Suitable for critical services where each host must be available
+  - Suitable for services where each host's availability is critical
+
+Rule modes can be configured at three levels (in order of precedence):
+1. Check level - Overrides group settings for specific checks
+2. Group level - Default for all checks in the group
+3. Default - Falls back to "all" mode if not specified
 
 ## Configuration
 
@@ -63,6 +69,17 @@ Groups support two monitoring modes that can be configured at group or check lev
 
 ### Notification Configuration
 - `type`: Notification type ("log", more coming soon)
+
+## Metrics
+
+### Prometheus Integration
+- Node metrics for hosts and groups
+- Edge metrics for relationships
+- Response time histograms
+- Success/failure counters
+- Host availability tracking
+
+All metrics are exposed on `:9100/metrics` with the `checkmate_` prefix.
 
 ## Metrics
 
