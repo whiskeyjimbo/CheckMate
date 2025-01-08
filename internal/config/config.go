@@ -22,7 +22,6 @@ type Config struct {
 	Sites         []SiteConfig         `yaml:"sites"`
 	Rules         []rules.Rule         `yaml:"rules"`
 	Notifications []NotificationConfig `yaml:"notifications"`
-	CertRules     []rules.CertRule     `yaml:"certRules"`
 }
 
 type SiteConfig struct {
