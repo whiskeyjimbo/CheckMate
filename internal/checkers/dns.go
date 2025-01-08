@@ -2,7 +2,6 @@ package checkers
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"time"
 )
@@ -17,16 +16,20 @@ func (c *DNSChecker) Protocol() Protocol {
 	return DNS
 }
 
-func (c *DNSChecker) Check(ctx context.Context, address string) CheckResult {
-	start := time.Now()
+func (c *DNSChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
+	results := make([]HostCheckResult, 0, len(hosts))
 
-	resolver := net.Resolver{}
-	_, err := resolver.LookupHost(ctx, address)
-	elapsed := time.Since(start)
+	for _, host := range hosts {
+		start := time.Now()
 
-	if err != nil {
-		return newFailedResult(elapsed, fmt.Errorf("DNS lookup failed: %w", err))
+		_, err := net.DefaultResolver.LookupHost(ctx, host)
+		if err != nil {
+			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
+			continue
+		}
+
+		results = append(results, newHostResult(host, newSuccessResult(time.Since(start))))
 	}
 
-	return newSuccessResult(elapsed)
+	return results
 }

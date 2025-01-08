@@ -46,16 +46,21 @@ type PrometheusMetrics struct {
 	monitorSite    string
 }
 
-type GroupMetrics struct {
-	Site         string
-	Group        string
-	Port         string
-	Protocol     string
-	Tags         []string
+type HostResult struct {
 	Success      bool
 	ResponseTime time.Duration
-	HostsUp      int
-	HostsTotal   int
+	Error        error
+}
+
+type GroupMetrics struct {
+	Site        string
+	Group       string
+	Port        string
+	Protocol    string
+	Tags        []string
+	HostResults map[string]HostResult
+	HostsUp     int
+	HostsTotal  int
 }
 
 func NewPrometheusMetrics(logger *zap.SugaredLogger, monitorSite string) *PrometheusMetrics {
@@ -100,31 +105,36 @@ func StartMetricsServer(logger *zap.SugaredLogger) {
 }
 
 func (p *PrometheusMetrics) UpdateGroup(metrics GroupMetrics) {
-	labels := MetricLabels{
-		Site:     metrics.Site,
-		Group:    metrics.Group,
-		Port:     metrics.Port,
-		Protocol: metrics.Protocol,
+	for host, result := range metrics.HostResults {
+		labels := MetricLabels{
+			Site:     metrics.Site,
+			Group:    metrics.Group,
+			Host:     host,
+			Port:     metrics.Port,
+			Protocol: metrics.Protocol,
+		}
+		p.updateMetrics(labels, metrics.Tags, result.Success, result.ResponseTime)
 	}
-	p.updateMetrics(labels, metrics.Tags, metrics.Success, metrics.ResponseTime)
 	p.updateGroupCounts(metrics.Site, metrics.Group, metrics.Port, metrics.Protocol, metrics.HostsUp, metrics.HostsTotal)
 }
 
 func (p *PrometheusMetrics) updateMetrics(labels MetricLabels, tags []string, success bool, elapsed time.Duration) {
 	tagString := normalizeTagString(tags)
-	labelValues := []string{labels.Site, labels.Group, labels.Host, labels.Port, labels.Protocol, tagString}
+
+	fullLabels := []string{labels.Site, labels.Group, labels.Host, labels.Port, labels.Protocol, tagString}
+
+	histLabels := []string{labels.Site, labels.Group, labels.Port, labels.Protocol, tagString}
 
 	statusValue := 0.0
 	if success {
 		statusValue = 1.0
 	}
-	p.checkStatus.WithLabelValues(labelValues...).Set(statusValue)
+	p.checkStatus.WithLabelValues(fullLabels...).Set(statusValue)
 
 	// Update latency metrics only for successful checks
 	if success {
-		latencyMs := float64(elapsed.Milliseconds())
-		p.checkLatency.WithLabelValues(labelValues...).Set(latencyMs)
-		p.latencyHist.WithLabelValues(labelValues...).Observe(latencyMs)
+		p.checkLatency.WithLabelValues(fullLabels...).Set(float64(elapsed.Milliseconds()))
+		p.latencyHist.WithLabelValues(histLabels...).Observe(float64(elapsed.Seconds()))
 	}
 
 	p.updateGraphMetrics(labels, tagString, success, elapsed)
@@ -266,8 +276,8 @@ func createCheckStatusMetric() *prometheus.GaugeVec {
 	return promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Name:      "check_status",
-			Help:      "Status of the check (1 for up, 0 for down)",
+			Name:      "host_check_status",
+			Help:      "Status of the host check (1 for up, 0 for down)",
 		},
 		[]string{"site", "group", "host", "port", "protocol", "tags"},
 	)
@@ -277,8 +287,8 @@ func createCheckLatencyMetric() *prometheus.GaugeVec {
 	return promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
-			Name:      "check_latency_seconds",
-			Help:      "Latency of the check in seconds",
+			Name:      "host_check_latency_milliseconds",
+			Help:      "Latency of the host check in milliseconds",
 		},
 		[]string{"site", "group", "host", "port", "protocol", "tags"},
 	)

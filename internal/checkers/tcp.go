@@ -21,20 +21,23 @@ func (c *TCPChecker) Protocol() Protocol {
 	return TCP
 }
 
-func (c *TCPChecker) Check(ctx context.Context, address string) CheckResult {
-	start := time.Now()
+func (c *TCPChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
+	results := make([]HostCheckResult, 0, len(hosts))
 
-	dialer := net.Dialer{
-		Timeout: c.timeout,
+	for _, host := range hosts {
+		address := fmt.Sprintf("%s:%s", host, port)
+		start := time.Now()
+
+		d := net.Dialer{}
+		conn, err := d.DialContext(ctx, "tcp", address)
+		if err != nil {
+			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
+			continue
+		}
+		conn.Close()
+
+		results = append(results, newHostResult(host, newSuccessResult(time.Since(start))))
 	}
 
-	conn, err := dialer.DialContext(ctx, "tcp", address)
-	elapsed := time.Since(start)
-
-	if err != nil {
-		return newFailedResult(elapsed, fmt.Errorf("TCP connection failed: %w", err))
-	}
-	defer conn.Close()
-
-	return newSuccessResult(elapsed)
+	return results
 }

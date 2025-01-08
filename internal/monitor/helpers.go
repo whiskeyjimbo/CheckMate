@@ -2,27 +2,31 @@ package monitor
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/whiskeyjimbo/CheckMate/internal/checkers"
 	"github.com/whiskeyjimbo/CheckMate/internal/config"
+	"github.com/whiskeyjimbo/CheckMate/internal/metrics"
 	"github.com/whiskeyjimbo/CheckMate/internal/notifications"
 	"github.com/whiskeyjimbo/CheckMate/internal/rules"
 	"github.com/whiskeyjimbo/CheckMate/internal/tags"
 )
 
-func performHostChecks(mc MonitoringContext, checker checkers.Checker) map[string]HostResult {
-	hostResults := make(map[string]HostResult)
+func performHostChecks(mc MonitoringContext, checker checkers.Checker) map[string]metrics.HostResult {
+	hostResults := make(map[string]metrics.HostResult)
+	hosts := make([]string, 0, len(mc.Base.Group.Hosts))
 
 	for _, host := range mc.Base.Group.Hosts {
-		address := fmt.Sprintf("%s:%s", host.Host, mc.Check.Port)
-		checkCtx, checkCancel := context.WithTimeout(mc.Base.Ctx, 10*time.Second)
-		result := checker.Check(checkCtx, address)
-		checkCancel()
+		hosts = append(hosts, host.Host)
+	}
 
-		hostResults[host.Host] = HostResult{
+	checkCtx, checkCancel := context.WithTimeout(mc.Base.Ctx, 10*time.Second)
+	results := checker.Check(checkCtx, hosts, mc.Check.Port)
+	checkCancel()
+
+	for _, result := range results {
+		hostResults[result.Host] = metrics.HostResult{
 			Success:      result.Success,
 			ResponseTime: result.ResponseTime,
 			Error:        result.Error,
@@ -32,7 +36,7 @@ func performHostChecks(mc MonitoringContext, checker checkers.Checker) map[strin
 			Logger:      mc.Base.Logger,
 			Site:        mc.Base.Site,
 			Group:       mc.Base.Group.Name,
-			Host:        host.Host,
+			Host:        result.Host,
 			CheckConfig: mc.Check,
 			Success:     result.Success,
 			Error:       result.Error,
@@ -44,7 +48,7 @@ func performHostChecks(mc MonitoringContext, checker checkers.Checker) map[strin
 	return hostResults
 }
 
-func calculateGroupStats(results map[string]HostResult) GroupStats {
+func calculateGroupStats(results map[string]metrics.HostResult) GroupStats {
 	stats := GroupStats{
 		AllDown:    true,
 		TotalHosts: len(results),
@@ -74,7 +78,7 @@ func processRules(
 	downtime time.Duration,
 	lastRuleEval map[string]time.Time,
 	ruleModeResolver *config.RuleModeResolver,
-	hostResults map[string]HostResult,
+	hostResults map[string]metrics.HostResult,
 ) {
 	failingHosts := getFailingHosts(hostResults)
 
@@ -88,7 +92,7 @@ func processRules(
 	}
 }
 
-func getFailingHosts(hostResults map[string]HostResult) []string {
+func getFailingHosts(hostResults map[string]metrics.HostResult) []string {
 	var failingHosts []string
 	for host, result := range hostResults {
 		if !result.Success {
