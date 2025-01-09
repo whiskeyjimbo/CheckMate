@@ -175,6 +175,7 @@ All health check endpoints are served on port 9100 alongside metrics.
 - [ ] Configurable notification thresholds
 - [ ] Database support for historical data
 - [ ] Web UI for monitoring (MAYBE)
+- [ ] Config Hot Reload
 
 ## Completed
 - [x] Env Variables for config
