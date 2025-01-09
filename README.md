@@ -98,25 +98,14 @@ Type-specific Fields:
 
 ## Metrics
 
-### Prometheus Integration
-- Node metrics for hosts and groups
-- Edge metrics for relationships
-- Response time histograms
-- Success/failure counters
-- Host availability tracking
-
-All metrics are exposed on `:9100/metrics` with the `checkmate_` prefix.
-
-## Metrics
-
-CheckMate exposes Prometheus metrics at `:9100/metrics`:
+CheckMate exposes Prometheus metrics at `:9100/metrics`
 
 ### Core Metrics
-- `checkmate_check_success`: Service availability (1 = up, 0 = down)
-- `checkmate_check_latency_milliseconds`: Response time in milliseconds
-- `checkmate_check_latency_milliseconds_histogram`: Response time distribution
-- `checkmate_hosts_up`: Number of hosts up in a group (per port/protocol)
-- `checkmate_hosts_total`: Total number of hosts in a group (per port/protocol)
+- `checkmate_host_check_status`: Service availability (1 = up, 0 = down)
+- `checkmate_host_check_latency_milliseconds`: Response time in milliseconds
+- `checkmate_check_latency_histogram_seconds`: Response time distribution
+- `checkmate_hosts_up`: Number of hosts up in a group
+- `checkmate_hosts_total`: Total number of hosts in a group
 - `checkmate_cert_expiry_days`: Days until certificate expiration
 
 ### Graph Visualization Metrics (In Development)
@@ -180,13 +169,16 @@ CheckMate provides Kubernetes-compatible health check endpoints:
 
 All health check endpoints are served on port 9100 alongside metrics.
 
-## Roadmap
+## Mini Roadmap
 
 - [ ] Notification system expansion (Slack, Email)
 - [ ] Configurable notification thresholds
 - [ ] Database support for historical data
-- [ ] Docker container
 - [ ] Web UI for monitoring (MAYBE)
+
+## Completed
+- [x] Env Variables for config
+- [x] Dockerfile for dev
 - [x] Additional protocol support (HTTPS, TLS verification)
 - [x] Kubernetes readiness/liveness probe support
 - [x] Multiple host monitoring
