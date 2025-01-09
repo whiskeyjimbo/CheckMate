@@ -26,7 +26,8 @@ type HTTPSResult struct {
 func NewHTTPSChecker() *HTTPSChecker {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: false, // Enforce certificate validation
+			InsecureSkipVerify: false,            // Enforce certificate validation
+			MinVersion:         tls.VersionTLS12, // Enforce minimum TLS version G402
 		},
 	}
 
@@ -38,34 +39,36 @@ func NewHTTPSChecker() *HTTPSChecker {
 	return &HTTPSChecker{client: client}
 }
 
-func (c *HTTPSChecker) Check(ctx context.Context, address string) CheckResult {
-	start := time.Now()
-	url := fmt.Sprintf("https://%s", address)
+func (c *HTTPSChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
+	results := make([]HostCheckResult, 0, len(hosts))
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return CheckResult{Success: false, Error: err}
+	for _, host := range hosts {
+		address := fmt.Sprintf("%s:%s", host, port)
+		url := fmt.Sprintf("https://%s", address)
+		start := time.Now()
+
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
+			continue
+		}
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
+			continue
+		}
+
+		// Get certificate information
+		certInfo := c.getCertificateInfo(resp.TLS)
+		result := newSuccessResult(time.Since(start))
+		result.Metadata = map[string]interface{}{"certificate": certInfo}
+
+		resp.Body.Close()
+		results = append(results, newHostResult(host, result))
 	}
 
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return CheckResult{Success: false, Error: err}
-	}
-	defer resp.Body.Close()
-
-	// Get certificate information
-	certInfo := c.getCertificateInfo(resp.TLS)
-
-	result := CheckResult{
-		Success:      resp.StatusCode < 400,
-		ResponseTime: time.Since(start),
-		Error:        nil,
-		Metadata: map[string]interface{}{
-			"certificate": certInfo,
-		},
-	}
-
-	return result
+	return results
 }
 
 func (c *HTTPSChecker) getCertificateInfo(tlsState *tls.ConnectionState) *CertInfo {

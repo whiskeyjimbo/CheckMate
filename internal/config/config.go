@@ -3,9 +3,11 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/drone/envsubst"
 	"github.com/whiskeyjimbo/CheckMate/internal/rules"
 	"gopkg.in/yaml.v2"
 )
@@ -22,7 +24,6 @@ type Config struct {
 	Sites         []SiteConfig         `yaml:"sites"`
 	Rules         []rules.Rule         `yaml:"rules"`
 	Notifications []NotificationConfig `yaml:"notifications"`
-	CertRules     []rules.CertRule     `yaml:"certRules"`
 }
 
 type SiteConfig struct {
@@ -33,25 +34,25 @@ type SiteConfig struct {
 
 type GroupConfig struct {
 	Name     string        `yaml:"name"`
+	RuleMode RuleMode      `yaml:"ruleMode,omitempty"`
 	Tags     []string      `yaml:"tags"`
 	Hosts    []HostConfig  `yaml:"hosts"`
 	Checks   []CheckConfig `yaml:"checks"`
-	RuleMode RuleMode      `yaml:"ruleMode,omitempty"`
 }
 
 type HostConfig struct {
 	Host     string        `yaml:"host"`
+	RuleMode RuleMode      `yaml:"ruleMode,omitempty"`
 	Tags     []string      `yaml:"tags"`
 	Checks   []CheckConfig `yaml:"checks"`
-	RuleMode RuleMode      `yaml:"ruleMode,omitempty"`
 }
 
 type CheckConfig struct {
 	Port       string   `yaml:"port"`
 	Protocol   string   `yaml:"protocol"`
 	Interval   string   `yaml:"interval"`
-	Tags       []string `yaml:"tags"`
 	RuleMode   RuleMode `yaml:"ruleMode,omitempty"`
+	Tags       []string `yaml:"tags"`
 	VerifyCert bool     `yaml:"verifyCert,omitempty"`
 	Command    string   `yaml:"command,omitempty"`
 }
@@ -80,13 +81,24 @@ func LoadConfiguration(args []string) (*Config, error) {
 }
 
 func loadConfig(filename string) (*Config, error) {
-	data, err := os.ReadFile(filename)
+	cleanPath := filepath.Clean(filename)
+	if filepath.IsAbs(cleanPath) {
+		return nil, fmt.Errorf("absolute paths are not allowed: %s", filename)
+	}
+
+	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return nil, err
 	}
 
+	// Use envsubst to handle environment variable substitution
+	expandedData, err := envsubst.EvalEnv(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("failed to substitute environment variables: %w", err)
+	}
+
 	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	if err := yaml.Unmarshal([]byte(expandedData), &config); err != nil {
 		return nil, err
 	}
 

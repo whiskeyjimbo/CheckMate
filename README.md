@@ -64,41 +64,48 @@ Rule modes can be configured at three levels (in order of precedence):
 - `ruleMode`: Group-level rule mode ("all" or "any")
 
 ### Rule Configuration
+Rules define conditions for generating notifications. Each rule requires a `type` field:
+
+```yaml
+# Standard Rule Example
+- name: "prod_service_degraded"
+  type: "standard"
+  condition: "responseTime > 1000 || downtime > 0"
+  tags: ["prod", "critical"]
+  notifications: ["log"]
+# Certificate Rule Example
+- name: "cert_expiring_soon"
+  type: "cert"
+  minDaysValidity: 30
+  tags: ["https-api"]
+  notifications: ["log"]
+```
+
+Common Fields:
 - `name`: Rule identifier
-- `condition`: Expression using `downtime` and `responseTime` variables
-- `tags`: Tags to match against groups
+- `type`: Either "standard" or "cert"
+- `tags`: Tags to match against groups/checks
 - `notifications`: Notification types to use
+
+Type-specific Fields:
+- Standard Rules:
+  - `condition`: Expression using `downtime` and `responseTime` variables
+- Certificate Rules:
+  - `minDaysValidity`: Days before expiration to trigger alert
 
 ### Notification Configuration
 - `type`: Notification type ("log", more coming soon)
 
-### Certificate Rule Configuration
-- `name`: Rule identifier
-- `minDaysValidity`: Number of days before expiration to trigger alert
-- `tags`: Tags to match against groups/checks
-- `notifications`: Notification types to use
-
 ## Metrics
 
-### Prometheus Integration
-- Node metrics for hosts and groups
-- Edge metrics for relationships
-- Response time histograms
-- Success/failure counters
-- Host availability tracking
-
-All metrics are exposed on `:9100/metrics` with the `checkmate_` prefix.
-
-## Metrics
-
-CheckMate exposes Prometheus metrics at `:9100/metrics`:
+CheckMate exposes Prometheus metrics at `:9100/metrics`
 
 ### Core Metrics
-- `checkmate_check_success`: Service availability (1 = up, 0 = down)
-- `checkmate_check_latency_milliseconds`: Response time in milliseconds
-- `checkmate_check_latency_milliseconds_histogram`: Response time distribution
-- `checkmate_hosts_up`: Number of hosts up in a group (per port/protocol)
-- `checkmate_hosts_total`: Total number of hosts in a group (per port/protocol)
+- `checkmate_host_check_status`: Service availability (1 = up, 0 = down)
+- `checkmate_host_check_latency_milliseconds`: Response time in milliseconds
+- `checkmate_check_latency_histogram_seconds`: Response time distribution
+- `checkmate_hosts_up`: Number of hosts up in a group
+- `checkmate_hosts_total`: Total number of hosts in a group
 - `checkmate_cert_expiry_days`: Days until certificate expiration
 
 ### Graph Visualization Metrics (In Development)
@@ -162,13 +169,17 @@ CheckMate provides Kubernetes-compatible health check endpoints:
 
 All health check endpoints are served on port 9100 alongside metrics.
 
-## Roadmap
+## Mini Roadmap
 
 - [ ] Notification system expansion (Slack, Email)
 - [ ] Configurable notification thresholds
 - [ ] Database support for historical data
-- [ ] Docker container
 - [ ] Web UI for monitoring (MAYBE)
+- [ ] Config Hot Reload
+
+## Completed
+- [x] Env Variables for config
+- [x] Dockerfile for dev
 - [x] Additional protocol support (HTTPS, TLS verification)
 - [x] Kubernetes readiness/liveness probe support
 - [x] Multiple host monitoring

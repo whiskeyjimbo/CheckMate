@@ -18,14 +18,19 @@ const (
 )
 
 type CheckResult struct {
-	Success      bool
-	ResponseTime time.Duration
 	Error        error
 	Metadata     map[string]interface{}
+	ResponseTime time.Duration
+	Success      bool
+}
+
+type HostCheckResult struct {
+	Host string
+	CheckResult
 }
 
 type Checker interface {
-	Check(ctx context.Context, address string) CheckResult
+	Check(ctx context.Context, hosts []string, port string) []HostCheckResult
 	Protocol() Protocol
 }
 
@@ -61,5 +66,12 @@ func newSuccessResult(duration time.Duration) CheckResult {
 		Success:      true,
 		ResponseTime: duration,
 		Error:        nil,
+	}
+}
+
+func newHostResult(host string, result CheckResult) HostCheckResult {
+	return HostCheckResult{
+		Host:        host,
+		CheckResult: result,
 	}
 }

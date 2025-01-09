@@ -9,17 +9,26 @@ import (
 	"github.com/expr-lang/expr"
 )
 
+type RuleType string
+
+const (
+	StandardRule RuleType = "standard"
+	CertRule     RuleType = "cert"
+)
+
 type Rule struct {
-	Name          string   `yaml:"name"`
-	Condition     string   `yaml:"condition"`
-	Tags          []string `yaml:"tags"`
-	Notifications []string `yaml:"notifications"`
+	Name            string   `yaml:"name"`
+	Type            RuleType `yaml:"type"`
+	Condition       string   `yaml:"condition,omitempty"`
+	Tags            []string `yaml:"tags"`
+	Notifications   []string `yaml:"notifications"`
+	MinDaysValidity int      `yaml:"minDaysValidity,omitempty"`
 }
 
 type RuleResult struct {
-	Satisfied bool
-	Message   string
 	Error     error
+	Message   string
+	Satisfied bool
 }
 
 var (
@@ -27,7 +36,39 @@ var (
 	ErrInvalidSyntax  = errors.New("invalid rule syntax")
 )
 
-func EvaluateRule(rule Rule, downtime, responseTime time.Duration) RuleResult {
+type EvaluationParams struct {
+	CertExpiryTime time.Time
+	Downtime       time.Duration
+	ResponseTime   time.Duration
+}
+
+func (r Rule) Validate() error {
+	if r.Type == "" {
+		return fmt.Errorf("rule type must be specified")
+	}
+	switch r.Type {
+	case StandardRule, CertRule:
+		return nil
+	default:
+		return fmt.Errorf("invalid rule type: %s", r.Type)
+	}
+}
+
+func EvaluateRule(rule Rule, params EvaluationParams) RuleResult {
+	if err := rule.Validate(); err != nil {
+		return RuleResult{Error: err}
+	}
+
+	switch rule.Type {
+	case StandardRule:
+		return evaluateStandardRule(rule, params.Downtime, params.ResponseTime)
+	case CertRule:
+		return evaluateCertRule(rule, params.CertExpiryTime)
+	}
+	return RuleResult{Error: fmt.Errorf("unsupported rule type: %s", rule.Type)}
+}
+
+func evaluateStandardRule(rule Rule, downtime, responseTime time.Duration) RuleResult {
 	if rule.Condition == "" {
 		return RuleResult{Error: ErrEmptyCondition}
 	}

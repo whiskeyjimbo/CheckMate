@@ -2,6 +2,8 @@ package checkers
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/smtp"
 	"time"
 )
@@ -16,16 +18,30 @@ func (c *SMTPChecker) Protocol() Protocol {
 	return SMTP
 }
 
-func (c *SMTPChecker) Check(ctx context.Context, address string) CheckResult {
-	start := time.Now()
+func (c *SMTPChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
+	results := make([]HostCheckResult, 0, len(hosts))
 
-	client, err := smtp.Dial(address)
-	elapsed := time.Since(start)
+	for _, host := range hosts {
+		address := fmt.Sprintf("%s:%s", host, port)
+		start := time.Now()
 
-	if err != nil {
-		return newFailedResult(elapsed, err)
+		d := net.Dialer{Timeout: 10 * time.Second}
+		conn, err := d.DialContext(ctx, "tcp", address)
+		if err != nil {
+			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
+			continue
+		}
+
+		client, err := smtp.NewClient(conn, host)
+		if err != nil {
+			conn.Close()
+			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
+			continue
+		}
+		client.Close()
+
+		results = append(results, newHostResult(host, newSuccessResult(time.Since(start))))
 	}
-	defer client.Close()
 
-	return newSuccessResult(elapsed)
+	return results
 }

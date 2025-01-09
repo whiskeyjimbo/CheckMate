@@ -63,15 +63,14 @@ func MonitorGroup(mc MonitoringContext) {
 			stats := calculateGroupStats(hostResults)
 
 			mc.Metrics.UpdateGroup(metrics.GroupMetrics{
-				Site:         mc.Base.Site,
-				Group:        mc.Base.Group.Name,
-				Port:         mc.Check.Port,
-				Protocol:     string(mc.Check.Protocol),
-				Tags:         mc.Base.Tags,
-				Success:      !stats.AllDown,
-				ResponseTime: stats.AvgResponseTime,
-				HostsUp:      stats.SuccessfulChecks,
-				HostsTotal:   stats.TotalHosts,
+				Site:        mc.Base.Site,
+				Group:       mc.Base.Group.Name,
+				Port:        mc.Check.Port,
+				Protocol:    string(mc.Check.Protocol),
+				Tags:        mc.Base.Tags,
+				HostResults: hostResults,
+				HostsUp:     stats.SuccessfulChecks,
+				HostsTotal:  stats.TotalHosts,
 			})
 
 			shouldUpdateDowntime := ruleModeResolver.ShouldTrigger(stats.AnyDown, stats.AllDown, mc.Check)

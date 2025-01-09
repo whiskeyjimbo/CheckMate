@@ -23,24 +23,29 @@ func (c *HTTPChecker) Protocol() Protocol {
 	return HTTP
 }
 
-func (c *HTTPChecker) Check(ctx context.Context, address string) CheckResult {
-	start := time.Now()
+func (c *HTTPChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
+	results := make([]HostCheckResult, 0, len(hosts))
 
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s", address), nil)
-	if err != nil {
-		return newFailedResult(time.Since(start), err)
+	for _, host := range hosts {
+		address := fmt.Sprintf("%s:%s", host, port)
+		url := fmt.Sprintf("http://%s", address)
+		start := time.Now()
+
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
+			continue
+		}
+
+		resp, err := c.client.Do(req)
+		if err != nil {
+			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
+			continue
+		}
+		resp.Body.Close()
+
+		results = append(results, newHostResult(host, newSuccessResult(time.Since(start))))
 	}
 
-	resp, err := c.client.Do(req)
-	elapsed := time.Since(start)
-	if err != nil {
-		return newFailedResult(elapsed, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return newFailedResult(elapsed, fmt.Errorf("HTTP status code: %d", resp.StatusCode))
-	}
-
-	return newSuccessResult(elapsed)
+	return results
 }
