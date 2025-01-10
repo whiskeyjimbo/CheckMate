@@ -23,7 +23,9 @@ import (
 )
 
 const (
-	defaultHTTPTimeout = 10 * time.Second
+	httpMinTimeout     = 2 * time.Second
+	httpMaxTimeout     = 20 * time.Second
+	httpDefaultTimeout = 10 * time.Second
 )
 
 type HTTPChecker struct {
@@ -33,11 +35,13 @@ type HTTPChecker struct {
 
 func NewHTTPChecker() *HTTPChecker {
 	return &HTTPChecker{
-		BaseChecker: BaseChecker{
-			timeout: defaultHTTPTimeout,
-		},
+		BaseChecker: NewBaseChecker(TimeoutBounds{
+			Min:     httpMinTimeout,
+			Max:     httpMaxTimeout,
+			Default: httpDefaultTimeout,
+		}),
 		client: &http.Client{
-			Timeout: defaultHTTPTimeout,
+			Timeout: httpDefaultTimeout,
 		},
 	}
 }

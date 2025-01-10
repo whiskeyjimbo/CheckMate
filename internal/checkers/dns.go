@@ -23,7 +23,9 @@ import (
 )
 
 const (
-	defaultDNSTimeout = 5 * time.Second
+	dnsMinTimeout     = 500 * time.Millisecond
+	dnsMaxTimeout     = 5 * time.Second
+	dnsDefaultTimeout = 2 * time.Second
 )
 
 type DNSChecker struct {
@@ -33,9 +35,11 @@ type DNSChecker struct {
 
 func NewDNSChecker() *DNSChecker {
 	return &DNSChecker{
-		BaseChecker: BaseChecker{
-			timeout: defaultDNSTimeout,
-		},
+		BaseChecker: NewBaseChecker(TimeoutBounds{
+			Min:     dnsMinTimeout,
+			Max:     dnsMaxTimeout,
+			Default: dnsDefaultTimeout,
+		}),
 		resolver: net.DefaultResolver,
 	}
 }

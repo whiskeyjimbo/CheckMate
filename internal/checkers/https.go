@@ -24,7 +24,9 @@ import (
 )
 
 const (
-	defaultHTTPSTimeout = 10 * time.Second
+	httpsMinTimeout     = 3 * time.Second // Slightly longer than HTTP due to TLS handshake
+	httpsMaxTimeout     = 20 * time.Second
+	httpsDefaultTimeout = 12 * time.Second
 )
 
 type CertInfo struct {
@@ -39,11 +41,13 @@ type HTTPSChecker struct {
 
 func NewHTTPSChecker() *HTTPSChecker {
 	return &HTTPSChecker{
-		BaseChecker: BaseChecker{
-			timeout: defaultHTTPSTimeout,
-		},
+		BaseChecker: NewBaseChecker(TimeoutBounds{
+			Min:     httpsMinTimeout,
+			Max:     httpsMaxTimeout,
+			Default: httpsDefaultTimeout,
+		}),
 		client: &http.Client{
-			Timeout: defaultHTTPSTimeout,
+			Timeout: httpsDefaultTimeout,
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{},
 			},

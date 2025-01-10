@@ -23,7 +23,9 @@ import (
 )
 
 const (
-	defaultSMTPTimeout = 10 * time.Second
+	smtpMinTimeout     = 5 * time.Second
+	smtpMaxTimeout     = 15 * time.Second
+	smtpDefaultTimeout = 10 * time.Second
 )
 
 type SMTPChecker struct {
@@ -32,9 +34,11 @@ type SMTPChecker struct {
 
 func NewSMTPChecker() *SMTPChecker {
 	return &SMTPChecker{
-		BaseChecker: BaseChecker{
-			timeout: defaultSMTPTimeout,
-		},
+		BaseChecker: NewBaseChecker(TimeoutBounds{
+			Min:     smtpMinTimeout,
+			Max:     smtpMaxTimeout,
+			Default: smtpDefaultTimeout,
+		}),
 	}
 }
 

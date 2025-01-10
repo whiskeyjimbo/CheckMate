@@ -20,6 +20,12 @@ import (
 	"time"
 )
 
+const (
+	GlobalMinTimeout     = 2 * time.Second
+	GlobalMaxTimeout     = 20 * time.Second
+	GlobalDefaultTimeout = 10 * time.Second
+)
+
 type CheckResult struct {
 	Error        error
 	Metadata     map[string]interface{}
@@ -32,15 +38,39 @@ type HostCheckResult struct {
 	CheckResult
 }
 
-// Checker defines the interface for all protocol checkers
 type Checker interface {
 	Protocol() Protocol
 	Check(ctx context.Context, hosts []string, port string) []HostCheckResult
+	GetTimeout() time.Duration
+	SetTimeout(timeout time.Duration)
 }
 
-// BaseChecker provides common functionality for all checkers
+type TimeoutBounds struct {
+	Min     time.Duration
+	Max     time.Duration
+	Default time.Duration
+}
+
 type BaseChecker struct {
 	timeout time.Duration
+	bounds  TimeoutBounds
+}
+
+func NewBaseChecker(bounds TimeoutBounds) BaseChecker {
+	if bounds.Min == 0 {
+		bounds.Min = GlobalMinTimeout
+	}
+	if bounds.Max == 0 {
+		bounds.Max = GlobalMaxTimeout
+	}
+	if bounds.Default == 0 {
+		bounds.Default = GlobalDefaultTimeout
+	}
+
+	return BaseChecker{
+		timeout: bounds.Default,
+		bounds:  bounds,
+	}
 }
 
 func (b *BaseChecker) checkHost(ctx context.Context, host string, checkFn func() error) HostCheckResult {
@@ -67,25 +97,16 @@ func (b *BaseChecker) checkHost(ctx context.Context, host string, checkFn func()
 	return result
 }
 
-func newFailedResult(duration time.Duration, err error) CheckResult {
-	return CheckResult{
-		Success:      false,
-		ResponseTime: duration,
-		Error:        err,
-	}
+func (b *BaseChecker) GetTimeout() time.Duration {
+	return b.timeout
 }
 
-func newSuccessResult(duration time.Duration) CheckResult {
-	return CheckResult{
-		Success:      true,
-		ResponseTime: duration,
-		Error:        nil,
+func (b *BaseChecker) SetTimeout(timeout time.Duration) {
+	if timeout < b.bounds.Min {
+		timeout = b.bounds.Min
 	}
-}
-
-func newHostResult(host string, result CheckResult) HostCheckResult {
-	return HostCheckResult{
-		Host:        host,
-		CheckResult: result,
+	if timeout > b.bounds.Max {
+		timeout = b.bounds.Max
 	}
+	b.timeout = timeout
 }

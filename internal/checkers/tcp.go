@@ -22,7 +22,11 @@ import (
 	"time"
 )
 
-const defaultTCPTimeout = 10 * time.Second
+const (
+	tcpMinTimeout     = 1 * time.Second
+	tcpMaxTimeout     = 10 * time.Second
+	tcpDefaultTimeout = 5 * time.Second
+)
 
 type TCPChecker struct {
 	BaseChecker
@@ -30,9 +34,11 @@ type TCPChecker struct {
 
 func NewTCPChecker() *TCPChecker {
 	return &TCPChecker{
-		BaseChecker: BaseChecker{
-			timeout: defaultTCPTimeout,
-		},
+		BaseChecker: NewBaseChecker(TimeoutBounds{
+			Min:     tcpMinTimeout,
+			Max:     tcpMaxTimeout,
+			Default: tcpDefaultTimeout,
+		}),
 	}
 }
 

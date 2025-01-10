@@ -17,6 +17,7 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -103,6 +104,10 @@ func initializeChecker(mc MonitoringContext) (checkers.Checker, time.Duration, e
 		return nil, 0, fmt.Errorf("invalid interval: %w", err)
 	}
 
+	if interval < 2*time.Second {
+		return nil, 0, errors.New("check interval must be at least 2 seconds")
+	}
+
 	protocol := checkers.Protocol(mc.Check.Protocol)
 	if !protocol.IsValid() {
 		return nil, 0, fmt.Errorf("unsupported protocol: %s", protocol)
@@ -112,6 +117,9 @@ func initializeChecker(mc MonitoringContext) (checkers.Checker, time.Duration, e
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to create checker: %w", err)
 	}
+
+	timeout := interval - 1*time.Second
+	checker.SetTimeout(timeout)
 
 	return checker, interval, nil
 }
