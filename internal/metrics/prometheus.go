@@ -230,7 +230,7 @@ func createEdgeMetric() *prometheus.GaugeVec {
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "edge_info",
-			Help:      "Edge information with latency for graph visualization",
+			Help:      "Edge information with latency in milliseconds for graph visualization",
 		},
 		[]string{"source", "target", "type", "metric", "port", "protocol"},
 	)
@@ -314,7 +314,7 @@ func createLatencyHistogram() *prometheus.HistogramVec {
 		prometheus.HistogramOpts{
 			Namespace: namespace,
 			Name:      "check_latency_histogram_seconds",
-			Help:      "Histogram of check latencies",
+			Help:      "Histogram of check latencies in seconds",
 			Buckets:   prometheus.DefBuckets,
 		},
 		[]string{"site", "group", "port", "protocol", "tags"},

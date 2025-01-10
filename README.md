@@ -171,11 +171,19 @@ All health check endpoints are served on port 9100 alongside metrics.
 
 ## Mini Roadmap
 
+### High Pri
+- [ ] Config Hot Reload
 - [ ] Notification system expansion (Slack, Email)
 - [ ] Configurable notification thresholds
+- - time between alerts
+- - service restoration notification
+- - configurable custom alert levels (example: insignificant, minor, critical, all hands on deck)
+- - etc.
+- [ ] move alert logic to notifications (any/all)
+
+### Low Pri
 - [ ] Database support for historical data
 - [ ] Web UI for monitoring (MAYBE)
-- [ ] Config Hot Reload
 
 ## Completed
 - [x] Env Variables for config
