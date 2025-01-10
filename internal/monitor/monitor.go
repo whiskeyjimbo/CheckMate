@@ -92,7 +92,7 @@ func MonitorGroup(mc MonitoringContext) {
 			downtime = updateDowntime(downtime, interval, !shouldUpdateDowntime)
 
 			processRules(mc, stats, downtime, lastRuleEval, ruleModeResolver, hostResults)
-			sleepUntilNextCheck(interval, time.Since(checkStart))
+			waitForNextCheckInterval(interval, time.Since(checkStart))
 		}
 	}
 }

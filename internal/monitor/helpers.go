@@ -95,19 +95,19 @@ func processRules(
 	ruleModeResolver *config.RuleModeResolver,
 	hostResults map[string]metrics.HostResult,
 ) {
-	failingHosts := getFailingHosts(hostResults)
+	failingHosts := collectFailingHosts(hostResults)
 
 	for _, rule := range mc.Rules {
 		if !tags.HasMatching(mc.Base.Tags, rule.Tags) {
 			continue
 		}
 
-		processRule(mc, rule, stats, downtime, ruleModeResolver, failingHosts)
+		evaluateAndProcessRule(mc, rule, stats, downtime, ruleModeResolver, failingHosts)
 		lastRuleEval[rule.Name] = time.Now()
 	}
 }
 
-func getFailingHosts(hostResults map[string]metrics.HostResult) []string {
+func collectFailingHosts(hostResults map[string]metrics.HostResult) []string {
 	var failingHosts []string
 	for host, result := range hostResults {
 		if !result.Success {
@@ -117,7 +117,7 @@ func getFailingHosts(hostResults map[string]metrics.HostResult) []string {
 	return failingHosts
 }
 
-func processRule(
+func evaluateAndProcessRule(
 	mc MonitoringContext,
 	rule rules.Rule,
 	stats GroupStats,
@@ -223,7 +223,7 @@ func logCheckResult(ctx CheckContext) {
 	}
 }
 
-func sleepUntilNextCheck(interval, elapsed time.Duration) {
+func waitForNextCheckInterval(interval, elapsed time.Duration) {
 	sleepDuration := interval - elapsed
 	if sleepDuration > 0 {
 		time.Sleep(sleepDuration)
