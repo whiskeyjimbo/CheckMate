@@ -22,45 +22,58 @@ import (
 	"time"
 )
 
+const (
+	defaultHTTPTimeout = 10 * time.Second
+)
+
 type HTTPChecker struct {
+	BaseChecker
 	client *http.Client
 }
 
 func NewHTTPChecker() *HTTPChecker {
 	return &HTTPChecker{
+		BaseChecker: BaseChecker{
+			timeout: defaultHTTPTimeout,
+		},
 		client: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: defaultHTTPTimeout,
 		},
 	}
 }
 
 func (c *HTTPChecker) Protocol() Protocol {
-	return HTTP
+	return "HTTP"
 }
 
 func (c *HTTPChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
 	results := make([]HostCheckResult, 0, len(hosts))
 
 	for _, host := range hosts {
-		address := fmt.Sprintf("%s:%s", host, port)
-		url := fmt.Sprintf("http://%s", address)
-		start := time.Now()
+		url := fmt.Sprintf("http://%s:%s", host, port)
+		result := c.checkHost(ctx, host, func() error {
+			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+			if err != nil {
+				return fmt.Errorf("failed to create request: %w", err)
+			}
 
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-		if err != nil {
-			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
-			continue
-		}
+			resp, err := c.client.Do(req)
+			if err != nil {
+				return fmt.Errorf("http request failed: %w", err)
+			}
+			defer resp.Body.Close()
 
-		resp, err := c.client.Do(req)
-		if err != nil {
-			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
-			continue
-		}
-		resp.Body.Close()
-
-		results = append(results, newHostResult(host, newSuccessResult(time.Since(start))))
+			if resp.StatusCode >= 400 {
+				return fmt.Errorf("http status error: %d", resp.StatusCode)
+			}
+			return nil
+		})
+		results = append(results, result)
 	}
 
 	return results
+}
+
+func init() {
+	RegisterChecker("HTTP", func() Checker { return NewHTTPChecker() })
 }

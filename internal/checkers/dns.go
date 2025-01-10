@@ -17,34 +17,64 @@ package checkers
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 )
 
-type DNSChecker struct{}
+const (
+	defaultDNSTimeout = 5 * time.Second
+)
+
+type DNSChecker struct {
+	BaseChecker
+	resolver *net.Resolver
+}
 
 func NewDNSChecker() *DNSChecker {
-	return &DNSChecker{}
+	return &DNSChecker{
+		BaseChecker: BaseChecker{
+			timeout: defaultDNSTimeout,
+		},
+		resolver: net.DefaultResolver,
+	}
 }
 
 func (c *DNSChecker) Protocol() Protocol {
-	return DNS
+	return "DNS"
 }
 
 func (c *DNSChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
 	results := make([]HostCheckResult, 0, len(hosts))
 
 	for _, host := range hosts {
-		start := time.Now()
+		var ips []net.IP
+		result := c.checkHost(ctx, host, func() error {
+			ctx, cancel := context.WithTimeout(ctx, c.timeout)
+			defer cancel()
 
-		_, err := net.DefaultResolver.LookupHost(ctx, host)
-		if err != nil {
-			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
-			continue
+			var err error
+			ips, err = c.resolver.LookupIP(ctx, "ip4", host)
+			if err != nil {
+				return fmt.Errorf("dns lookup failed: %w", err)
+			}
+
+			if len(ips) == 0 {
+				return fmt.Errorf("no IP addresses found for host")
+			}
+			return nil
+		})
+		if len(ips) > 0 {
+			result.Metadata = map[string]interface{}{
+				"ips": ips,
+			}
 		}
-
-		results = append(results, newHostResult(host, newSuccessResult(time.Since(start))))
+		results = append(results, result)
 	}
 
 	return results
+}
+
+func init() {
+	RegisterChecker("DNS", func() Checker { return NewDNSChecker() })
 }

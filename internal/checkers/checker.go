@@ -17,18 +17,7 @@ package checkers
 
 import (
 	"context"
-	"fmt"
 	"time"
-)
-
-type Protocol string
-
-const (
-	TCP   Protocol = "TCP"
-	HTTP  Protocol = "HTTP"
-	HTTPS Protocol = "HTTPS"
-	SMTP  Protocol = "SMTP"
-	DNS   Protocol = "DNS"
 )
 
 type CheckResult struct {
@@ -43,26 +32,39 @@ type HostCheckResult struct {
 	CheckResult
 }
 
+// Checker defines the interface for all protocol checkers
 type Checker interface {
-	Check(ctx context.Context, hosts []string, port string) []HostCheckResult
 	Protocol() Protocol
+	Check(ctx context.Context, hosts []string, port string) []HostCheckResult
 }
 
-func NewChecker(protocol Protocol) (Checker, error) {
-	switch protocol {
-	case TCP:
-		return NewTCPChecker(), nil
-	case HTTP:
-		return NewHTTPChecker(), nil
-	case HTTPS:
-		return NewHTTPSChecker(), nil
-	case SMTP:
-		return NewSMTPChecker(), nil
-	case DNS:
-		return NewDNSChecker(), nil
-	default:
-		return nil, fmt.Errorf("unsupported protocol: %s", protocol)
+// BaseChecker provides common functionality for all checkers
+type BaseChecker struct {
+	timeout time.Duration
+}
+
+func (b *BaseChecker) checkHost(ctx context.Context, host string, checkFn func() error) HostCheckResult {
+	start := time.Now()
+	result := HostCheckResult{
+		Host: host,
+		CheckResult: CheckResult{
+			Success: true,
+		},
 	}
+
+	if err := ctx.Err(); err != nil {
+		result.Error = err
+		result.Success = false
+		return result
+	}
+
+	if err := checkFn(); err != nil {
+		result.Error = err
+		result.Success = false
+	}
+
+	result.ResponseTime = time.Since(start)
+	return result
 }
 
 func newFailedResult(duration time.Duration, err error) CheckResult {

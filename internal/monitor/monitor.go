@@ -103,9 +103,14 @@ func initializeChecker(mc MonitoringContext) (checkers.Checker, time.Duration, e
 		return nil, 0, fmt.Errorf("invalid interval: %w", err)
 	}
 
-	checker, err := checkers.NewChecker(checkers.Protocol(mc.Check.Protocol))
+	protocol := checkers.Protocol(mc.Check.Protocol)
+	if !protocol.IsValid() {
+		return nil, 0, fmt.Errorf("unsupported protocol: %s", protocol)
+	}
+
+	checker, err := checkers.NewChecker(protocol)
 	if err != nil {
-		return nil, 0, fmt.Errorf("invalid checker: %w", err)
+		return nil, 0, fmt.Errorf("failed to create checker: %w", err)
 	}
 
 	return checker, interval, nil

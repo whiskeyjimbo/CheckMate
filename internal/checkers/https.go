@@ -23,82 +23,80 @@ import (
 	"time"
 )
 
-type HTTPSChecker struct {
-	client *http.Client
-}
+const (
+	defaultHTTPSTimeout = 10 * time.Second
+)
 
 type CertInfo struct {
 	ExpiresAt time.Time
 	IssuedBy  string
-	IssuedFor []string
 }
 
-type HTTPSResult struct {
-	CheckResult
-	Certificate *CertInfo
+type HTTPSChecker struct {
+	BaseChecker
+	client *http.Client
 }
 
 func NewHTTPSChecker() *HTTPSChecker {
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: false,            // Enforce certificate validation
-			MinVersion:         tls.VersionTLS12, // Enforce minimum TLS version G402
+	return &HTTPSChecker{
+		BaseChecker: BaseChecker{
+			timeout: defaultHTTPSTimeout,
+		},
+		client: &http.Client{
+			Timeout: defaultHTTPSTimeout,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{},
+			},
 		},
 	}
+}
 
-	client := &http.Client{
-		Transport: transport,
-		Timeout:   10 * time.Second,
-	}
-
-	return &HTTPSChecker{client: client}
+func (c *HTTPSChecker) Protocol() Protocol {
+	return "HTTPS"
 }
 
 func (c *HTTPSChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
 	results := make([]HostCheckResult, 0, len(hosts))
 
 	for _, host := range hosts {
-		address := fmt.Sprintf("%s:%s", host, port)
-		url := fmt.Sprintf("https://%s", address)
-		start := time.Now()
+		url := fmt.Sprintf("https://%s:%s", host, port)
+		var certInfo *CertInfo
+		result := c.checkHost(ctx, host, func() error {
+			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+			if err != nil {
+				return fmt.Errorf("failed to create request: %w", err)
+			}
 
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-		if err != nil {
-			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
-			continue
+			resp, err := c.client.Do(req)
+			if err != nil {
+				return fmt.Errorf("https request failed: %w", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode >= 400 {
+				return fmt.Errorf("https status error: %d", resp.StatusCode)
+			}
+
+			if resp.TLS != nil && len(resp.TLS.PeerCertificates) > 0 {
+				cert := resp.TLS.PeerCertificates[0]
+				certInfo = &CertInfo{
+					ExpiresAt: cert.NotAfter,
+					IssuedBy:  cert.Issuer.CommonName,
+				}
+			}
+			return nil
+		})
+		if certInfo != nil {
+			result.Metadata = map[string]interface{}{
+				"cert_info": certInfo,
+			}
 		}
-
-		resp, err := c.client.Do(req)
-		if err != nil {
-			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
-			continue
-		}
-
-		// Get certificate information
-		certInfo := c.getCertificateInfo(resp.TLS)
-		result := newSuccessResult(time.Since(start))
-		result.Metadata = map[string]interface{}{"certificate": certInfo}
-
-		resp.Body.Close()
-		results = append(results, newHostResult(host, result))
+		results = append(results, result)
 	}
 
 	return results
 }
 
-func (c *HTTPSChecker) getCertificateInfo(tlsState *tls.ConnectionState) *CertInfo {
-	if tlsState == nil || len(tlsState.PeerCertificates) == 0 {
-		return nil
-	}
-
-	cert := tlsState.PeerCertificates[0]
-	return &CertInfo{
-		ExpiresAt: cert.NotAfter,
-		IssuedBy:  cert.Issuer.CommonName,
-		IssuedFor: cert.DNSNames,
-	}
-}
-
-func (c *HTTPSChecker) Protocol() Protocol {
-	return HTTPS
+func init() {
+	RegisterChecker("HTTPS", func() Checker { return NewHTTPSChecker() })
 }

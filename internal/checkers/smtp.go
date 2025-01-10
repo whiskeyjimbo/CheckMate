@@ -18,19 +18,28 @@ package checkers
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/smtp"
 	"time"
 )
 
-type SMTPChecker struct{}
+const (
+	defaultSMTPTimeout = 10 * time.Second
+)
+
+type SMTPChecker struct {
+	BaseChecker
+}
 
 func NewSMTPChecker() *SMTPChecker {
-	return &SMTPChecker{}
+	return &SMTPChecker{
+		BaseChecker: BaseChecker{
+			timeout: defaultSMTPTimeout,
+		},
+	}
 }
 
 func (c *SMTPChecker) Protocol() Protocol {
-	return SMTP
+	return "SMTP"
 }
 
 func (c *SMTPChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
@@ -38,25 +47,24 @@ func (c *SMTPChecker) Check(ctx context.Context, hosts []string, port string) []
 
 	for _, host := range hosts {
 		address := fmt.Sprintf("%s:%s", host, port)
-		start := time.Now()
+		result := c.checkHost(ctx, host, func() error {
+			client, err := smtp.Dial(address)
+			if err != nil {
+				return fmt.Errorf("smtp connection failed: %w", err)
+			}
+			defer client.Close()
 
-		d := net.Dialer{Timeout: 10 * time.Second}
-		conn, err := d.DialContext(ctx, "tcp", address)
-		if err != nil {
-			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
-			continue
-		}
-
-		client, err := smtp.NewClient(conn, host)
-		if err != nil {
-			conn.Close()
-			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
-			continue
-		}
-		client.Close()
-
-		results = append(results, newHostResult(host, newSuccessResult(time.Since(start))))
+			if err := client.Hello("checkmate.monitor"); err != nil {
+				return fmt.Errorf("smtp hello failed: %w", err)
+			}
+			return nil
+		})
+		results = append(results, result)
 	}
 
 	return results
+}
+
+func init() {
+	RegisterChecker("SMTP", func() Checker { return NewSMTPChecker() })
 }

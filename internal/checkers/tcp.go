@@ -22,18 +22,22 @@ import (
 	"time"
 )
 
+const defaultTCPTimeout = 10 * time.Second
+
 type TCPChecker struct {
-	timeout time.Duration
+	BaseChecker
 }
 
 func NewTCPChecker() *TCPChecker {
 	return &TCPChecker{
-		timeout: 10 * time.Second,
+		BaseChecker: BaseChecker{
+			timeout: defaultTCPTimeout,
+		},
 	}
 }
 
 func (c *TCPChecker) Protocol() Protocol {
-	return TCP
+	return "TCP"
 }
 
 func (c *TCPChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
@@ -41,18 +45,20 @@ func (c *TCPChecker) Check(ctx context.Context, hosts []string, port string) []H
 
 	for _, host := range hosts {
 		address := fmt.Sprintf("%s:%s", host, port)
-		start := time.Now()
-
-		d := net.Dialer{}
-		conn, err := d.DialContext(ctx, "tcp", address)
-		if err != nil {
-			results = append(results, newHostResult(host, newFailedResult(time.Since(start), err)))
-			continue
-		}
-		conn.Close()
-
-		results = append(results, newHostResult(host, newSuccessResult(time.Since(start))))
+		result := c.checkHost(ctx, host, func() error {
+			conn, err := net.DialTimeout("tcp", address, c.timeout)
+			if err != nil {
+				return fmt.Errorf("tcp connection failed: %w", err)
+			}
+			defer conn.Close()
+			return nil
+		})
+		results = append(results, result)
 	}
 
 	return results
+}
+
+func init() {
+	RegisterChecker("TCP", func() Checker { return NewTCPChecker() })
 }
