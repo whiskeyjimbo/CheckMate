@@ -66,26 +66,3 @@ func (b *BaseChecker) checkHost(ctx context.Context, host string, checkFn func()
 	result.ResponseTime = time.Since(start)
 	return result
 }
-
-func newFailedResult(duration time.Duration, err error) CheckResult {
-	return CheckResult{
-		Success:      false,
-		ResponseTime: duration,
-		Error:        err,
-	}
-}
-
-func newSuccessResult(duration time.Duration) CheckResult {
-	return CheckResult{
-		Success:      true,
-		ResponseTime: duration,
-		Error:        nil,
-	}
-}
-
-func newHostResult(host string, result CheckResult) HostCheckResult {
-	return HostCheckResult{
-		Host:        host,
-		CheckResult: result,
-	}
-}

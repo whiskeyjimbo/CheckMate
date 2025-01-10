@@ -18,6 +18,7 @@ package rules
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,7 +38,7 @@ type Rule struct {
 	Condition       string   `yaml:"condition,omitempty"`
 	Tags            []string `yaml:"tags"`
 	Notifications   []string `yaml:"notifications"`
-	MinDaysValidity int      `yaml:"minDaysValidity,omitempty"`
+	MinDaysValidity int      `yaml:"min_days_validity,omitempty"`
 }
 
 type RuleResult struct {
@@ -59,7 +60,7 @@ type EvaluationParams struct {
 
 func (r Rule) Validate() error {
 	if r.Type == "" {
-		return fmt.Errorf("rule type must be specified")
+		return errors.New("rule type must be specified")
 	}
 	switch r.Type {
 	case StandardRule, CertRule:
@@ -93,11 +94,7 @@ func evaluateStandardRule(rule Rule, downtime, responseTime time.Duration) RuleR
 		"responseTime": timeDurationToSeconds(responseTime),
 	}
 
-	condition, err := normalizeCondition(rule.Condition)
-	if err != nil {
-		return RuleResult{Error: fmt.Errorf("failed to normalize condition: %w", err)}
-	}
-
+	condition := normalizeCondition(rule.Condition)
 	program, err := expr.Compile(condition, expr.Env(env))
 	if err != nil {
 		return RuleResult{Error: fmt.Errorf("%w: %v", ErrInvalidSyntax, err)}
@@ -119,15 +116,15 @@ func evaluateStandardRule(rule Rule, downtime, responseTime time.Duration) RuleR
 	}
 }
 
-func normalizeCondition(condition string) (string, error) {
+func normalizeCondition(condition string) string {
 	words := strings.Split(condition, " ")
 	for i, word := range words {
 		dur, err := time.ParseDuration(word)
 		if err == nil {
-			words[i] = fmt.Sprintf("%d", int(dur.Seconds()))
+			words[i] = strconv.Itoa(int(dur.Seconds()))
 		}
 	}
-	return strings.Join(words, " "), nil
+	return strings.Join(words, " ")
 }
 
 func timeDurationToSeconds(d time.Duration) int {

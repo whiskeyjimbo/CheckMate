@@ -51,7 +51,7 @@ func ListProtocols() []Protocol {
 func (p Protocol) IsValid() bool {
 	defaultRegistry.mu.RLock()
 	defer defaultRegistry.mu.RUnlock()
-	_, exists := defaultRegistry.checkers[Protocol(p)]
+	_, exists := defaultRegistry.checkers[p]
 	return exists
 }
 

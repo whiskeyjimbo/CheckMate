@@ -167,7 +167,9 @@ func sendIndividualNotifications(
 ) {
 	for _, failingHost := range failingHosts {
 		notification := createNotification(mc, rule, ruleResult, effectiveMode, stats, failingHost)
-		notifications.SendRuleNotifications(mc.Base.Ctx, rule, notification, mc.Base.NotifierMap)
+		if err := notifications.SendRuleNotifications(mc.Base.Ctx, rule, notification, mc.Base.NotifierMap); err != nil {
+			mc.Base.Logger.Errorf("Failed to send notification for host %s: %v", failingHost, err)
+		}
 	}
 }
 
@@ -180,7 +182,9 @@ func sendGroupNotification(
 	failingHosts []string,
 ) {
 	notification := createNotification(mc, rule, ruleResult, effectiveMode, stats, strings.Join(failingHosts, ","))
-	notifications.SendRuleNotifications(mc.Base.Ctx, rule, notification, mc.Base.NotifierMap)
+	if err := notifications.SendRuleNotifications(mc.Base.Ctx, rule, notification, mc.Base.NotifierMap); err != nil {
+		mc.Base.Logger.Errorf("Failed to send group notifications: %v", err)
+	}
 }
 
 func createNotification(
@@ -198,7 +202,7 @@ func createNotification(
 		Site:     mc.Base.Site,
 		Group:    mc.Base.Group.Name,
 		Port:     mc.Check.Port,
-		Protocol: string(mc.Check.Protocol),
+		Protocol: mc.Check.Protocol,
 		Host:     host,
 	}
 }

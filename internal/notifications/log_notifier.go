@@ -31,7 +31,7 @@ func NewLogNotifier(logger *zap.SugaredLogger) *LogNotifier {
 	}
 }
 
-func (n *LogNotifier) SendNotification(ctx context.Context, notification Notification) error {
+func (n *LogNotifier) SendNotification(_ context.Context, notification Notification) error {
 	logger := n.logger.With(
 		"level", notification.Level,
 		"site", notification.Site,
@@ -59,6 +59,7 @@ func (n *LogNotifier) Type() NotificationType {
 }
 
 func (n *LogNotifier) Initialize(ctx context.Context) error {
+	_ = ctx
 	return nil
 }
 

@@ -55,17 +55,22 @@ func SendRuleNotifications(
 	rule rules.Rule,
 	notification Notification,
 	notifierMap map[string]Notifier,
-) {
+) error {
 	if len(rule.Notifications) == 0 {
 		for _, notifier := range notifierMap {
-			notifier.SendNotification(ctx, notification)
+			if err := notifier.SendNotification(ctx, notification); err != nil {
+				return fmt.Errorf("failed to send notification: %w", err)
+			}
 		}
-		return
+		return nil
 	}
 
 	for _, notificationType := range rule.Notifications {
 		if notifier, ok := notifierMap[notificationType]; ok {
-			notifier.SendNotification(ctx, notification)
+			if err := notifier.SendNotification(ctx, notification); err != nil {
+				return fmt.Errorf("failed to send notification %s: %w", notificationType, err)
+			}
 		}
 	}
+	return nil
 }

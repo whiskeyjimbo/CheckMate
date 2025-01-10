@@ -24,7 +24,7 @@ func SetReady(ready bool) {
 	isReady.Store(ready)
 }
 
-func LivenessHandler(w http.ResponseWriter, r *http.Request) {
+func LivenessHandler(w http.ResponseWriter, _ *http.Request) {
 	response := Response{
 		Status:    StatusUp,
 		Timestamp: time.Now(),
@@ -32,7 +32,7 @@ func LivenessHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSONResponse(w, http.StatusOK, response)
 }
 
-func ReadinessHandler(w http.ResponseWriter, r *http.Request) {
+func ReadinessHandler(w http.ResponseWriter, _ *http.Request) {
 	response := Response{
 		Timestamp: time.Now(),
 	}
@@ -50,5 +50,7 @@ func ReadinessHandler(w http.ResponseWriter, r *http.Request) {
 func writeJSONResponse(w http.ResponseWriter, status int, response Response) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }

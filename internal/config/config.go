@@ -16,6 +16,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,7 +36,7 @@ const (
 )
 
 type Config struct {
-	MonitorSite   string               `yaml:"monitorSite"`
+	MonitorSite   string               `yaml:"monitor_site"`
 	Sites         []SiteConfig         `yaml:"sites"`
 	Rules         []rules.Rule         `yaml:"rules"`
 	Notifications []NotificationConfig `yaml:"notifications"`
@@ -49,7 +50,7 @@ type SiteConfig struct {
 
 type GroupConfig struct {
 	Name     string        `yaml:"name"`
-	RuleMode RuleMode      `yaml:"ruleMode,omitempty"`
+	RuleMode RuleMode      `yaml:"rule_mode,omitempty"`
 	Tags     []string      `yaml:"tags"`
 	Hosts    []HostConfig  `yaml:"hosts"`
 	Checks   []CheckConfig `yaml:"checks"`
@@ -57,7 +58,7 @@ type GroupConfig struct {
 
 type HostConfig struct {
 	Host     string        `yaml:"host"`
-	RuleMode RuleMode      `yaml:"ruleMode,omitempty"`
+	RuleMode RuleMode      `yaml:"rule_mode,omitempty"`
 	Tags     []string      `yaml:"tags"`
 	Checks   []CheckConfig `yaml:"checks"`
 }
@@ -66,9 +67,9 @@ type CheckConfig struct {
 	Port       string   `yaml:"port"`
 	Protocol   string   `yaml:"protocol"`
 	Interval   string   `yaml:"interval"`
-	RuleMode   RuleMode `yaml:"ruleMode,omitempty"`
+	RuleMode   RuleMode `yaml:"rule_mode,omitempty"`
 	Tags       []string `yaml:"tags"`
-	VerifyCert bool     `yaml:"verifyCert,omitempty"`
+	VerifyCert bool     `yaml:"verify_cert,omitempty"`
 }
 
 type NotificationConfig struct {
@@ -121,12 +122,12 @@ func loadConfig(filename string) (*Config, error) {
 
 func validateConfig(c *Config) error {
 	if c.MonitorSite == "" {
-		return fmt.Errorf("monitorSite must be specified")
+		return errors.New("monitorSite must be specified")
 	}
 
 	for _, site := range c.Sites {
 		if site.Name == "" {
-			return fmt.Errorf("site name cannot be empty")
+			return errors.New("site name cannot be empty")
 		}
 		for _, group := range site.Groups {
 			if err := group.Validate(); err != nil {
@@ -141,27 +142,27 @@ func normalizeConfig(c *Config) {
 	for i := range c.Sites {
 		for j := range c.Sites[i].Groups {
 			for k := range c.Sites[i].Groups[j].Checks {
-				normalizeCheck(&c.Sites[i].Groups[j].Checks[k])
+				normalizeCheckConfiguration(&c.Sites[i].Groups[j].Checks[k])
 			}
 			for k := range c.Sites[i].Groups[j].Hosts {
 				for l := range c.Sites[i].Groups[j].Hosts[k].Checks {
-					normalizeCheck(&c.Sites[i].Groups[j].Hosts[k].Checks[l])
+					normalizeCheckConfiguration(&c.Sites[i].Groups[j].Hosts[k].Checks[l])
 				}
 			}
 		}
 	}
 }
 
-func normalizeCheck(c *CheckConfig) {
+func normalizeCheckConfiguration(c *CheckConfig) {
 	c.Protocol = strings.ToUpper(c.Protocol)
 	if _, err := strconv.Atoi(c.Interval); err == nil {
-		c.Interval = c.Interval + "s"
+		c.Interval += "s"
 	}
 }
 
 func (g *GroupConfig) Validate() error {
 	if g.Name == "" {
-		return fmt.Errorf("group name cannot be empty")
+		return errors.New("group name cannot be empty")
 	}
 	if g.RuleMode == "" {
 		g.RuleMode = RuleModeAll

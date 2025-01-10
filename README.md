@@ -42,7 +42,7 @@ Rule modes can be configured at three levels (in order of precedence):
 ## Configuration
 
 ### Site Configuration
-- `monitorSite`: Name of the monitoring instance
+- `monitor_site`: Name of the monitoring instance
 - `sites`: List of infrastructure sites to monitor
   - `name`: Site identifier
   - `tags`: Site-level tags
@@ -59,9 +59,9 @@ Rule modes can be configured at three levels (in order of precedence):
   - `protocol`: TCP, HTTP, SMTP, or DNS
   - `interval`: Check frequency (e.g., "30s", "1m")
   - `tags`: Check-specific tags
-  - `ruleMode`: Override group's rule mode
-  - `verifyCert`: Enable certificate checking
-- `ruleMode`: Group-level rule mode ("all" or "any")
+  - `rule_mode`: Override group's rule mode
+  - `verify_cert`: Enable certificate checking
+- `rule_mode`: Group-level rule mode ("all" or "any")
 
 ### Rule Configuration
 Rules define conditions for generating notifications. Each rule requires a `type` field:
@@ -76,7 +76,7 @@ Rules define conditions for generating notifications. Each rule requires a `type
 # Certificate Rule Example
 - name: "cert_expiring_soon"
   type: "cert"
-  minDaysValidity: 30
+  min_days_validity: 30
   tags: ["https-api"]
   notifications: ["log"]
 ```
@@ -91,7 +91,7 @@ Type-specific Fields:
 - Standard Rules:
   - `condition`: Expression using `downtime` and `responseTime` variables
 - Certificate Rules:
-  - `minDaysValidity`: Days before expiration to trigger alert
+  - `min_days_validity`: Days before expiration to trigger alert
 
 ### Notification Configuration
 - `type`: Notification type ("log", more coming soon)

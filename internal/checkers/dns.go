@@ -17,6 +17,7 @@ package checkers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -44,7 +45,7 @@ func (c *DNSChecker) Protocol() Protocol {
 	return "DNS"
 }
 
-func (c *DNSChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
+func (c *DNSChecker) Check(ctx context.Context, hosts []string, _ string) []HostCheckResult {
 	results := make([]HostCheckResult, 0, len(hosts))
 
 	for _, host := range hosts {
@@ -60,7 +61,7 @@ func (c *DNSChecker) Check(ctx context.Context, hosts []string, port string) []H
 			}
 
 			if len(ips) == 0 {
-				return fmt.Errorf("no IP addresses found for host")
+				return errors.New("no IP addresses found for host")
 			}
 			return nil
 		})

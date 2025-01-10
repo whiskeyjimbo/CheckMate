@@ -17,6 +17,7 @@ package notifications
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"go.uber.org/zap"
@@ -65,7 +66,7 @@ func NewNotifier(notifierType string, opts ...interface{}) (Notifier, error) {
 				return NewLogNotifier(logger), nil
 			}
 		}
-		return nil, fmt.Errorf("log notifier requires a logger")
+		return nil, errors.New("log notifier requires a logger")
 	default:
 		return nil, fmt.Errorf("unsupported notification type: %s", notifierType)
 	}

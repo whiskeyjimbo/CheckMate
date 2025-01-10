@@ -16,49 +16,15 @@
 package monitor
 
 import (
-	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/whiskeyjimbo/CheckMate/internal/checkers"
 	"github.com/whiskeyjimbo/CheckMate/internal/config"
 	"github.com/whiskeyjimbo/CheckMate/internal/metrics"
-	"github.com/whiskeyjimbo/CheckMate/internal/notifications"
-	"github.com/whiskeyjimbo/CheckMate/internal/tags"
-	"go.uber.org/zap"
 )
 
-func startMonitoring(ctx context.Context, wg *sync.WaitGroup, logger *zap.SugaredLogger, cfg *config.Config, metrics *metrics.PrometheusMetrics, notifierMap map[string]notifications.Notifier) {
-	baseContext := BaseContext{
-		Ctx:         ctx,
-		Logger:      logger,
-		Site:        cfg.MonitorSite,
-		NotifierMap: notifierMap,
-	}
-
-	for _, site := range cfg.Sites {
-		for _, group := range site.Groups {
-			baseContext.Group = group
-			baseContext.Tags = tags.MergeTags(site.Tags, group.Tags)
-
-			for _, check := range group.Checks {
-				wg.Add(1)
-				go func(check config.CheckConfig) {
-					defer wg.Done()
-					MonitorGroup(MonitoringContext{
-						Base:    baseContext,
-						Check:   check,
-						Rules:   cfg.Rules,
-						Metrics: metrics,
-					})
-				}(check)
-			}
-		}
-	}
-}
-
-func MonitorGroup(mc MonitoringContext) {
+func WatchGroup(mc MonitoringContext) {
 	checker, interval, err := initializeChecker(mc)
 	if err != nil {
 		mc.Base.Logger.Fatal(err)
@@ -81,7 +47,7 @@ func MonitorGroup(mc MonitoringContext) {
 				Site:        mc.Base.Site,
 				Group:       mc.Base.Group.Name,
 				Port:        mc.Check.Port,
-				Protocol:    string(mc.Check.Protocol),
+				Protocol:    mc.Check.Protocol,
 				Tags:        mc.Base.Tags,
 				HostResults: hostResults,
 				HostsUp:     stats.SuccessfulChecks,

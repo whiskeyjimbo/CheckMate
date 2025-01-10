@@ -7,6 +7,7 @@ type Database interface {
 	Close() error
 }
 
+//nolint:gocritic,revive
 func NewDatabase(dbType, dbPath string) (Database, error) {
 	switch dbType {
 	default:

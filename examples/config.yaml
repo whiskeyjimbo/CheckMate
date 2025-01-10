@@ -1,4 +1,4 @@
-monitorSite: "${MONITOR_SITE:-sol}"  # Uses "sol" as default if MONITOR_SITE is not set
+monitor_site: "${MONITOR_SITE:-sol}"  # Uses "sol" as default if MONITOR_SITE is not set
 
 sites:
   - name: "${SITE_NAME:-mars-lab}"
@@ -6,7 +6,7 @@ sites:
     groups:
       - name: "api-service"
         tags: ["service-api", "critical"]
-        ruleMode: "any"  # Override default "all" mode for this group
+        rule_mode: "any"  # Override default "all" mode for this group
         hosts:
           - host: "${API_HOST_1:-api-1.mars.lab}"
             tags: ["primary"]
@@ -23,7 +23,7 @@ sites:
             protocol: HTTP
             interval: "1m"
             tags: ["metrics"]
-            ruleMode: "all"  # Override group's "any" mode for this check
+            rule_mode: "all"  # Override group's "any" mode for this check
 
       - name: "database"
         tags: ["service-db", "ha"]
@@ -55,7 +55,7 @@ sites:
             protocol: HTTPS
             interval: "10s"
             tags: ["https-api"]
-            verifyCert: true  # Enable certificate checking
+            verify_cert: true  # Enable certificate checking
           - port: "9100"
             protocol: HTTP
             interval: "30s"
@@ -101,13 +101,13 @@ rules:
 
   - name: "cert_expiring_soon"
     type: "cert"
-    minDaysValidity: 30
+    min_days_validity: 30
     tags: ["https-api"]
     notifications: ["log"]
 
   - name: "cert_critical"
     type: "cert"
-    minDaysValidity: 7
+    min_days_validity: 7
     tags: ["https-api", "critical"]
     notifications: ["log"]
 
