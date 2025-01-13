@@ -17,6 +17,7 @@ package checkers
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -42,7 +43,7 @@ type Checker interface {
 	Protocol() Protocol
 	Check(ctx context.Context, hosts []string, port string) []HostCheckResult
 	GetTimeout() time.Duration
-	SetTimeout(timeout time.Duration)
+	SetTimeout(timeout time.Duration) error
 }
 
 type TimeoutBounds struct {
@@ -101,12 +102,28 @@ func (b *BaseChecker) GetTimeout() time.Duration {
 	return b.timeout
 }
 
-func (b *BaseChecker) SetTimeout(timeout time.Duration) {
+func (b *BaseChecker) SetTimeout(timeout time.Duration) error {
+	var err error
+	b.timeout, err = b.ValidateTimeout(timeout)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *BaseChecker) GetTimeoutBounds() TimeoutBounds {
+	return b.bounds
+}
+
+func (b *BaseChecker) ValidateTimeout(timeout time.Duration) (time.Duration, error) {
+	if timeout == 0 {
+		return b.bounds.Default, nil
+	}
 	if timeout < b.bounds.Min {
-		timeout = b.bounds.Min
+		return b.bounds.Min, errors.New("timeout is less than the minimum allowed")
 	}
 	if timeout > b.bounds.Max {
-		timeout = b.bounds.Max
+		return b.bounds.Max, errors.New("timeout is greater than the maximum allowed")
 	}
-	b.timeout = timeout
+	return timeout, nil
 }
