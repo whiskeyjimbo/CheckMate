@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net/smtp"
+	"sync"
 	"time"
 )
 
@@ -30,6 +31,7 @@ const (
 
 type SMTPChecker struct {
 	BaseChecker
+	mu sync.RWMutex
 }
 
 func NewSMTPChecker() *SMTPChecker {
@@ -47,26 +49,21 @@ func (c *SMTPChecker) Protocol() Protocol {
 }
 
 func (c *SMTPChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
-	results := make([]HostCheckResult, 0, len(hosts))
+	return c.BaseChecker.Check(ctx, hosts, port, c.checkSMTP)
+}
 
-	for _, host := range hosts {
-		address := fmt.Sprintf("%s:%s", host, port)
-		result := c.checkHost(ctx, host, func() error {
-			client, err := smtp.Dial(address)
-			if err != nil {
-				return fmt.Errorf("smtp connection failed: %w", err)
-			}
-			defer client.Close()
-
-			if err := client.Hello("checkmate.monitor"); err != nil {
-				return fmt.Errorf("smtp hello failed: %w", err)
-			}
-			return nil
-		})
-		results = append(results, result)
+func (c *SMTPChecker) checkSMTP(ctx context.Context, host string, port string) (map[string]interface{}, error) {
+	address := fmt.Sprintf("%s:%s", host, port)
+	client, err := smtp.Dial(address)
+	if err != nil {
+		return nil, fmt.Errorf("smtp connection failed: %w", err)
 	}
+	defer client.Close()
 
-	return results
+	if err := client.Hello("checkmate.monitor"); err != nil {
+		return nil, fmt.Errorf("smtp hello failed: %w", err)
+	}
+	return nil, nil
 }
 
 func init() {

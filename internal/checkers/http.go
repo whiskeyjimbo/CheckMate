@@ -51,31 +51,26 @@ func (c *HTTPChecker) Protocol() Protocol {
 }
 
 func (c *HTTPChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
-	results := make([]HostCheckResult, 0, len(hosts))
+	return c.BaseChecker.Check(ctx, hosts, port, c.checkHTTP)
+}
 
-	for _, host := range hosts {
-		url := fmt.Sprintf("http://%s:%s", host, port)
-		result := c.checkHost(ctx, host, func() error {
-			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-			if err != nil {
-				return fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := c.client.Do(req)
-			if err != nil {
-				return fmt.Errorf("http request failed: %w", err)
-			}
-			defer resp.Body.Close()
-
-			if resp.StatusCode >= 400 {
-				return fmt.Errorf("http status error: %d", resp.StatusCode)
-			}
-			return nil
-		})
-		results = append(results, result)
+func (c *HTTPChecker) checkHTTP(ctx context.Context, host string, port string) (map[string]interface{}, error) {
+	url := fmt.Sprintf("http://%s:%s", host, port)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	return results
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("http request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("http status error: %d", resp.StatusCode)
+	}
+	return nil, nil
 }
 
 func init() {

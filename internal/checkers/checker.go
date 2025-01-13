@@ -18,6 +18,7 @@ package checkers
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 )
 
@@ -55,6 +56,7 @@ type TimeoutBounds struct {
 type BaseChecker struct {
 	timeout time.Duration
 	bounds  TimeoutBounds
+	mu      sync.RWMutex
 }
 
 func NewBaseChecker(bounds TimeoutBounds) BaseChecker {
@@ -74,7 +76,7 @@ func NewBaseChecker(bounds TimeoutBounds) BaseChecker {
 	}
 }
 
-func (b *BaseChecker) checkHost(ctx context.Context, host string, checkFn func() error) HostCheckResult {
+func (b *BaseChecker) checkHost(ctx context.Context, host string, checkFn func() (map[string]interface{}, error)) HostCheckResult {
 	start := time.Now()
 	result := HostCheckResult{
 		Host: host,
@@ -89,25 +91,30 @@ func (b *BaseChecker) checkHost(ctx context.Context, host string, checkFn func()
 		return result
 	}
 
-	if err := checkFn(); err != nil {
+	metadata, err := checkFn()
+	if err != nil {
 		result.Error = err
 		result.Success = false
 	}
-
+	result.Metadata = metadata
 	result.ResponseTime = time.Since(start)
 	return result
 }
 
 func (b *BaseChecker) GetTimeout() time.Duration {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
 	return b.timeout
 }
 
 func (b *BaseChecker) SetTimeout(timeout time.Duration) error {
-	var err error
-	b.timeout, err = b.ValidateTimeout(timeout)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	validTimeout, err := b.ValidateTimeout(timeout)
 	if err != nil {
 		return err
 	}
+	b.timeout = validTimeout
 	return nil
 }
 
@@ -126,4 +133,49 @@ func (b *BaseChecker) ValidateTimeout(timeout time.Duration) (time.Duration, err
 		return b.bounds.Max, errors.New("timeout is greater than the maximum allowed")
 	}
 	return timeout, nil
+}
+
+func (b *BaseChecker) Check(ctx context.Context, hosts []string, port string, checkFn func(ctx context.Context, host string, port string) (map[string]interface{}, error)) []HostCheckResult {
+	return b.parallelCheck(ctx, hosts, port, checkFn)
+}
+
+func (b *BaseChecker) parallelCheck(ctx context.Context, hosts []string, port string, checkFn func(ctx context.Context, host string, port string) (map[string]interface{}, error)) []HostCheckResult {
+	checkCtx, cancel := context.WithTimeout(ctx, b.GetTimeout())
+	defer cancel()
+
+	results := make([]HostCheckResult, len(hosts))
+	for i, host := range hosts {
+		results[i].Host = host
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(hosts))
+
+	for i, host := range hosts {
+		go func(index int, host string) {
+			defer wg.Done()
+			results[index] = b.checkHost(checkCtx, host, func() (map[string]interface{}, error) {
+				return checkFn(checkCtx, host, port)
+			})
+		}(i, host)
+	}
+
+	wg.Wait()
+	return results
+}
+
+type CheckError struct {
+	err      error
+	metadata map[string]interface{}
+}
+
+func (e *CheckError) Error() string {
+	if e.err != nil {
+		return e.err.Error()
+	}
+	return ""
+}
+
+func (e *CheckError) Metadata() map[string]interface{} {
+	return e.metadata
 }

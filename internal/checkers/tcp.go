@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -30,6 +31,7 @@ const (
 
 type TCPChecker struct {
 	BaseChecker
+	mu sync.RWMutex
 }
 
 func NewTCPChecker() *TCPChecker {
@@ -47,22 +49,17 @@ func (c *TCPChecker) Protocol() Protocol {
 }
 
 func (c *TCPChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
-	results := make([]HostCheckResult, 0, len(hosts))
+	return c.BaseChecker.Check(ctx, hosts, port, c.checkTCP)
+}
 
-	for _, host := range hosts {
-		address := fmt.Sprintf("%s:%s", host, port)
-		result := c.checkHost(ctx, host, func() error {
-			conn, err := net.DialTimeout("tcp", address, c.timeout)
-			if err != nil {
-				return fmt.Errorf("tcp connection failed: %w", err)
-			}
-			defer conn.Close()
-			return nil
-		})
-		results = append(results, result)
+func (c *TCPChecker) checkTCP(ctx context.Context, host string, port string) (map[string]interface{}, error) {
+	address := fmt.Sprintf("%s:%s", host, port)
+	conn, err := net.DialTimeout("tcp", address, c.GetTimeout())
+	if err != nil {
+		return nil, fmt.Errorf("tcp connection failed: %w", err)
 	}
-
-	return results
+	defer conn.Close()
+	return nil, nil
 }
 
 func init() {

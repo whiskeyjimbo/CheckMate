@@ -16,7 +16,6 @@
 package monitor
 
 import (
-	"context"
 	"strings"
 	"time"
 
@@ -36,9 +35,7 @@ func performHostChecks(mc MonitoringContext, checker checkers.Checker) map[strin
 		hosts = append(hosts, host.Host)
 	}
 
-	checkCtx, checkCancel := context.WithTimeout(mc.Base.Ctx, 10*time.Second)
-	results := checker.Check(checkCtx, hosts, mc.Check.Port)
-	checkCancel()
+	results := checker.Check(mc.Base.Ctx, hosts, mc.Check.Port)
 
 	for _, result := range results {
 		hostResults[result.Host] = metrics.HostResult{
@@ -220,6 +217,8 @@ func logCheckResult(ctx CheckContext) {
 		l.Warn(ctx.Error)
 	case !ctx.Success:
 		l.Error("Check failed")
+	case ctx.Success:
+		l.Info("Check passed")
 	}
 }
 

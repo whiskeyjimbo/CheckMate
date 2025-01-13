@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -31,6 +32,7 @@ const (
 type DNSChecker struct {
 	BaseChecker
 	resolver *net.Resolver
+	mu       sync.RWMutex
 }
 
 func NewDNSChecker() *DNSChecker {
@@ -49,34 +51,25 @@ func (c *DNSChecker) Protocol() Protocol {
 }
 
 func (c *DNSChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
-	results := make([]HostCheckResult, 0, len(hosts))
+	return c.BaseChecker.Check(ctx, hosts, port, c.checkDNS)
+}
 
-	for _, host := range hosts {
-		var ips []net.IP
-		result := c.checkHost(ctx, host, func() error {
-			ctx, cancel := context.WithTimeout(ctx, c.timeout)
-			defer cancel()
+func (c *DNSChecker) checkDNS(ctx context.Context, host string, port string) (map[string]interface{}, error) {
+	lookupCtx, cancel := context.WithTimeout(ctx, c.GetTimeout())
+	defer cancel()
 
-			var err error
-			ips, err = c.resolver.LookupIP(ctx, "ip4", host)
-			if err != nil {
-				return fmt.Errorf("dns lookup failed: %w", err)
-			}
-
-			if len(ips) == 0 {
-				return fmt.Errorf("no IP addresses found for host")
-			}
-			return nil
-		})
-		if len(ips) > 0 {
-			result.Metadata = map[string]interface{}{
-				"ips": ips,
-			}
-		}
-		results = append(results, result)
+	ips, err := c.resolver.LookupIP(lookupCtx, "ip4", host)
+	if err != nil {
+		return nil, fmt.Errorf("dns lookup failed: %w", err)
 	}
 
-	return results
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no IP addresses found for host")
+	}
+
+	return map[string]interface{}{
+		"ips": ips,
+	}, nil
 }
 
 func init() {
