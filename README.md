@@ -19,6 +19,7 @@ DISCLAIMER: This is a personal project and is not meant to be used in a producti
 - Flexible notification system
 - Service tagging system
 - TLS certificate expiration monitoring
+- Extensible design for easy protocol additions
 
 ### High Availability Monitoring
 
