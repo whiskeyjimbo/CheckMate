@@ -17,26 +17,31 @@ package checkers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 )
 
 const (
-	defaultDNSTimeout = 5 * time.Second
+	dnsMinTimeout     = 500 * time.Millisecond
+	dnsMaxTimeout     = 5 * time.Second
+	dnsDefaultTimeout = 2 * time.Second
 )
 
 type DNSChecker struct {
 	BaseChecker
 	resolver *net.Resolver
+	mu       sync.RWMutex
 }
 
 func NewDNSChecker() *DNSChecker {
 	return &DNSChecker{
-		BaseChecker: BaseChecker{
-			timeout: defaultDNSTimeout,
-		},
+		BaseChecker: NewBaseChecker(TimeoutBounds{
+			Min:     dnsMinTimeout,
+			Max:     dnsMaxTimeout,
+			Default: dnsDefaultTimeout,
+		}),
 		resolver: net.DefaultResolver,
 	}
 }
@@ -45,35 +50,26 @@ func (c *DNSChecker) Protocol() Protocol {
 	return "DNS"
 }
 
-func (c *DNSChecker) Check(ctx context.Context, hosts []string, _ string) []HostCheckResult {
-	results := make([]HostCheckResult, 0, len(hosts))
+func (c *DNSChecker) Check(ctx context.Context, hosts []string, port string) []HostCheckResult {
+	return c.BaseChecker.Check(ctx, hosts, port, c.checkDNS)
+}
 
-	for _, host := range hosts {
-		var ips []net.IP
-		result := c.checkHost(ctx, host, func() error {
-			ctx, cancel := context.WithTimeout(ctx, c.timeout)
-			defer cancel()
+func (c *DNSChecker) checkDNS(ctx context.Context, host string, port string) (map[string]interface{}, error) {
+	lookupCtx, cancel := context.WithTimeout(ctx, c.GetTimeout())
+	defer cancel()
 
-			var err error
-			ips, err = c.resolver.LookupIP(ctx, "ip4", host)
-			if err != nil {
-				return fmt.Errorf("dns lookup failed: %w", err)
-			}
-
-			if len(ips) == 0 {
-				return errors.New("no IP addresses found for host")
-			}
-			return nil
-		})
-		if len(ips) > 0 {
-			result.Metadata = map[string]interface{}{
-				"ips": ips,
-			}
-		}
-		results = append(results, result)
+	ips, err := c.resolver.LookupIP(lookupCtx, "ip4", host)
+	if err != nil {
+		return nil, fmt.Errorf("dns lookup failed: %w", err)
 	}
 
-	return results
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no IP addresses found for host")
+	}
+
+	return map[string]interface{}{
+		"ips": ips,
+	}, nil
 }
 
 func init() {

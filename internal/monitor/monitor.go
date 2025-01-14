@@ -71,13 +71,17 @@ func initializeChecker(mc MonitoringContext) (checkers.Checker, time.Duration, e
 
 	protocol := checkers.Protocol(mc.Check.Protocol)
 	if !protocol.IsValid() {
-		return nil, 0, fmt.Errorf("unsupported protocol: %s", protocol)
+		supported := checkers.ListProtocols()
+		return nil, 0, fmt.Errorf("unsupported protocol %q. Supported protocols: %v", protocol, supported)
 	}
 
 	checker, err := checkers.NewChecker(protocol)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to create checker: %w", err)
 	}
+
+	// Set the timeout to the interval (maybe i should update to interval-1 second), which will be validated by the checker, and min/max will be enforced
+	_ = checker.SetTimeout(interval)
 
 	return checker, interval, nil
 }
