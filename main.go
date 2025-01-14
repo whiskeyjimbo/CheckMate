@@ -83,7 +83,7 @@ func startMonitoring(
 						Metrics: metrics,
 						Rules:   cfg.Rules,
 					}
-					monitor.MonitorGroup(mc)
+					monitor.WatchGroup(mc)
 				}(site.Name, group, checkConfig, combinedTags)
 			}
 		}
