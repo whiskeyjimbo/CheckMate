@@ -17,7 +17,15 @@ package checkers
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"time"
+)
+
+const (
+	GlobalMinTimeout     = 2 * time.Second
+	GlobalMaxTimeout     = 20 * time.Second
+	GlobalDefaultTimeout = 10 * time.Second
 )
 
 type CheckResult struct {
@@ -32,18 +40,43 @@ type HostCheckResult struct {
 	CheckResult
 }
 
-// Checker defines the interface for all protocol checkers
 type Checker interface {
 	Protocol() Protocol
 	Check(ctx context.Context, hosts []string, port string) []HostCheckResult
+	GetTimeout() time.Duration
+	SetTimeout(timeout time.Duration) error
 }
 
-// BaseChecker provides common functionality for all checkers
+type TimeoutBounds struct {
+	Min     time.Duration
+	Max     time.Duration
+	Default time.Duration
+}
+
 type BaseChecker struct {
 	timeout time.Duration
+	bounds  TimeoutBounds
+	mu      sync.RWMutex
 }
 
-func (b *BaseChecker) checkHost(ctx context.Context, host string, checkFn func() error) HostCheckResult {
+func NewBaseChecker(bounds TimeoutBounds) BaseChecker {
+	if bounds.Min == 0 {
+		bounds.Min = GlobalMinTimeout
+	}
+	if bounds.Max == 0 {
+		bounds.Max = GlobalMaxTimeout
+	}
+	if bounds.Default == 0 {
+		bounds.Default = GlobalDefaultTimeout
+	}
+
+	return BaseChecker{
+		timeout: bounds.Default,
+		bounds:  bounds,
+	}
+}
+
+func (b *BaseChecker) checkHost(ctx context.Context, host string, checkFn func() (map[string]interface{}, error)) HostCheckResult {
 	start := time.Now()
 	result := HostCheckResult{
 		Host: host,
@@ -58,34 +91,91 @@ func (b *BaseChecker) checkHost(ctx context.Context, host string, checkFn func()
 		return result
 	}
 
-	if err := checkFn(); err != nil {
+	metadata, err := checkFn()
+	if err != nil {
 		result.Error = err
 		result.Success = false
 	}
-
+	result.Metadata = metadata
 	result.ResponseTime = time.Since(start)
 	return result
 }
 
-func newFailedResult(duration time.Duration, err error) CheckResult {
-	return CheckResult{
-		Success:      false,
-		ResponseTime: duration,
-		Error:        err,
-	}
+func (b *BaseChecker) GetTimeout() time.Duration {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.timeout
 }
 
-func newSuccessResult(duration time.Duration) CheckResult {
-	return CheckResult{
-		Success:      true,
-		ResponseTime: duration,
-		Error:        nil,
+func (b *BaseChecker) SetTimeout(timeout time.Duration) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	validTimeout, err := b.ValidateTimeout(timeout)
+	if err != nil {
+		return err
 	}
+	b.timeout = validTimeout
+	return nil
 }
 
-func newHostResult(host string, result CheckResult) HostCheckResult {
-	return HostCheckResult{
-		Host:        host,
-		CheckResult: result,
+func (b *BaseChecker) GetTimeoutBounds() TimeoutBounds {
+	return b.bounds
+}
+
+func (b *BaseChecker) ValidateTimeout(timeout time.Duration) (time.Duration, error) {
+	if timeout == 0 {
+		return b.bounds.Default, nil
 	}
+	if timeout < b.bounds.Min {
+		return b.bounds.Min, errors.New("timeout is less than the minimum allowed")
+	}
+	if timeout > b.bounds.Max {
+		return b.bounds.Max, errors.New("timeout is greater than the maximum allowed")
+	}
+	return timeout, nil
+}
+
+func (b *BaseChecker) Check(ctx context.Context, hosts []string, port string, checkFn func(ctx context.Context, host string, port string) (map[string]interface{}, error)) []HostCheckResult {
+	return b.parallelCheck(ctx, hosts, port, checkFn)
+}
+
+func (b *BaseChecker) parallelCheck(ctx context.Context, hosts []string, port string, checkFn func(ctx context.Context, host string, port string) (map[string]interface{}, error)) []HostCheckResult {
+	checkCtx, cancel := context.WithTimeout(ctx, b.GetTimeout())
+	defer cancel()
+
+	results := make([]HostCheckResult, len(hosts))
+	for i, host := range hosts {
+		results[i].Host = host
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(hosts))
+
+	for i, host := range hosts {
+		go func(index int, host string) {
+			defer wg.Done()
+			results[index] = b.checkHost(checkCtx, host, func() (map[string]interface{}, error) {
+				return checkFn(checkCtx, host, port)
+			})
+		}(i, host)
+	}
+
+	wg.Wait()
+	return results
+}
+
+type CheckError struct {
+	err      error
+	metadata map[string]interface{}
+}
+
+func (e *CheckError) Error() string {
+	if e.err != nil {
+		return e.err.Error()
+	}
+	return ""
+}
+
+func (e *CheckError) Metadata() map[string]interface{} {
+	return e.metadata
 }
